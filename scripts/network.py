@@ -15,15 +15,15 @@ except NameError:
 
 driver = GraphDatabase.driver("bolt://localhost:7687", auth=("swills", password))
 
-def get_combinations(self):
+def get_combinations(fragments):
     """
     Enumerate all possible combinations of fragments for merging.
 
     :return: list of possible combinations of fragments
     :rtype: list of tuples
     """
-    self.permutations = list(itertools.permutations(self.avail_fragments, 2))
-    return self.permutations
+    permutations = list(itertools.permutations(fragments, 2))
+    return permutations
 
 def mols_from_smiles(list_smiles):
     """
