@@ -105,7 +105,7 @@ class OverlapFilterDf():
         """
         self.merge_protein_distance()
         for i, distance in enumerate(self.distances):
-            if distance >= 0.9:
+            if distance >= 0.95:
                 self.nonoverlap_indices.append(i)
                 self.nonoverlap_mols.append(self.merges[i])
         print(f'Number of molecules: {len(self.nonoverlap_mols)}')
