@@ -127,3 +127,10 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+# data directory
+data/
+
+# ignore old versions
+notebooks/archived/
+scripts/archived/
