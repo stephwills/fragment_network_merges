@@ -4,6 +4,7 @@ Used for 3D filtering of fragment merges.
 
 from rdkit import Chem
 from rdkit.Chem import AllChem, rdFMCS, rdForceFieldHelpers
+import numpy as np
 
 def get_mcs(full_mol, fragment):
     """
@@ -86,7 +87,7 @@ def check_overlap(molA, molB):
         for j in range(confB.GetNumAtoms()):
             posB = np.array(confB.GetAtomPosition(j))
             dist = get_distance(posA, posB)
-            if dist < 0.1:
+            if dist < 0.5:
                 clashes.append(i)
                 break
     if clashes:
