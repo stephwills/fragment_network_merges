@@ -4,7 +4,6 @@ from fragmenstein import Victor
 import pyrosetta
 
 def place_with_fragmenstein(mergeNames, smiles, fragmentAs, fragmentBs, protein, output_directory):
-    summaries = {}
     pyrosetta.init(extra_options='-no_optH false -mute all -ex1 -ex2 -ignore_unrecognized_res false -load_PDB_components false -ignore_waters false')  # initialise pyrosetta
     for i, (merge, smi, fragmentA, fragmentB) in enumerate(zip(mergeNames, smiles, fragmentAs, fragmentBs)):
         output_subdirectory = merge + '_' + str(i)
@@ -19,7 +18,3 @@ def place_with_fragmenstein(mergeNames, smiles, fragmentAs, fragmentBs, protein,
                 )
         v.make_pse()
         print("Placed merge", i)
-        summaries[i]  = v.summarise()
-        print(v.summarise())
-
-    return summaries
