@@ -24,8 +24,8 @@ class TestEmbeddingFilter(unittest.TestCase):
     def test_filter(self):
         passing_case = EmbeddingFilter(passing_smiles, fragmentA, fragmentB, synthon).filter()
         failing_case = EmbeddingFilter(failing_smiles, fragmentA, fragmentB, synthon).filter()
-        self.assertIsNotNone(passing_case)
-        self.assertIsNone(failing_case)
+        self.assertEqual(passing_case, 'pass')
+        self.assertEqual(failing_case, 'fail')
 
 if __name__ == '__main__':
     unittest.main()

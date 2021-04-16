@@ -18,8 +18,8 @@ class TestDescriptorFilter(unittest.TestCase):
         failing_smiles = 'CC(C)C1=NN=C(C)N1[C@H]1C[C@@H]2CC[C@H](C1)N2CC[C@H](NC(=O)C1CCC(F)(F)CC1)C1=CC=CC=C1'
         passing_case = DescriptorFilter(passing_smiles).filter()
         failing_case = DescriptorFilter(failing_smiles).filter()
-        self.assertEqual(passing_case, passing_smiles)
-        self.assertEqual(failing_case, None)
+        self.assertEqual(passing_case, 'pass')
+        self.assertEqual(failing_case, 'fail')
 
 if __name__ == '__main__':
     unittest.main()

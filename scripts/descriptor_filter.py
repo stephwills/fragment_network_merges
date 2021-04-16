@@ -57,5 +57,7 @@ class DescriptorFilter():
         """
         violations = self.calculate_properties()
         if violations <= 2:
-            self.result = self.smiles
+            self.result = 'pass'
+        else:
+            self.result = 'fail'
         return self.result

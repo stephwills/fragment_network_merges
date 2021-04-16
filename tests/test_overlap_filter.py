@@ -30,8 +30,8 @@ class TestOverlapFilter(unittest.TestCase):
         self.assertEqual(mean, passing_case.geometric_mean(dists[0], dists[1]))
     
     def test_filter(self):
-        self.assertEqual(passing_mol, passing_case.filter())
-        self.assertIsNone(failing_case.filter())
+        self.assertEqual('pass', passing_case.filter())
+        self.assertEqual('fail', failing_case.filter())
 
 if __name__ == '__main__':
     unittest.main()
