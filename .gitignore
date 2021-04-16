@@ -129,7 +129,7 @@ dmypy.json
 .pyre/
 
 # data directory
-data/
+data/Mpro/
 
 # ignore old versions
 # notebooks/archived/
