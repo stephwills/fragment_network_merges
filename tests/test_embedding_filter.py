@@ -1,11 +1,10 @@
 import unittest
 import sys
 from rdkit import Chem
-from rdkit.Chem import rdmolfiles
 
 # import scripts
 sys.path.insert(1, '/home/sabsr3/xchem/fragment_network_merges/scripts')
-from embedding_filter import ConstrainedEmbedding
+from embedding_filter import EmbeddingFilter
 
 # some test cases
 passing_smiles = 'NC(=O)CN1CCC2(C1)CC1(C2)OCCO1'
@@ -18,13 +17,13 @@ fragmentB = Chem.MolFromMolFile('tests/Mpro-x0678_0A.mol')
 class TestEmbeddingFilter(unittest.TestCase):
 
     def test_get_mcs(self):
-        passing_case = ConstrainedEmbedding(passing_smiles, fragmentA, fragmentB, synthon)
+        passing_case = EmbeddingFilter(passing_smiles, fragmentA, fragmentB, synthon)
         mcs = passing_case.get_mcs(Chem.MolFromSmiles(passing_smiles), fragmentA)
         self.assertEqual(Chem.MolToSmarts(mcs), '[#6](-[#6])-[#7]-[#6]:,-[#6](:,-[#6]:,-[#6])-[#6]')
 
     def test_filter(self):
-        passing_case = ConstrainedEmbedding(passing_smiles, fragmentA, fragmentB, synthon).filter()
-        failing_case = ConstrainedEmbedding(failing_smiles, fragmentA, fragmentB, synthon).filter()
+        passing_case = EmbeddingFilter(passing_smiles, fragmentA, fragmentB, synthon).filter()
+        failing_case = EmbeddingFilter(failing_smiles, fragmentA, fragmentB, synthon).filter()
         self.assertIsNotNone(passing_case)
         self.assertIsNone(failing_case)
 

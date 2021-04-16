@@ -6,7 +6,7 @@ from rdkit import Chem
 from rdkit.Chem import AllChem, rdFMCS, rdForceFieldHelpers
 import numpy as np
 
-class ConstrainedEmbedding():
+class EmbeddingFilter():
 
     def __init__(self, merge, fragA, fragB, synthon):
         self.merge = Chem.MolFromSmiles(merge)
