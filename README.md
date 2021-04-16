@@ -7,3 +7,4 @@ Filtering steps involve filtering based on calculated descriptors, 3D filtering 
 
 The notebooks demonstrate how compounds are generated and filtered using a test set of 12 fragment pairs.  
 
+Currently the scripts are not suitable for their purpose and need refactoring. Many of the scripts have been written to process all SMILES rather than one single SMILES at a time. 
