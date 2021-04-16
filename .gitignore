@@ -132,5 +132,5 @@ dmypy.json
 data/
 
 # ignore old versions
-notebooks/archived/
-scripts/archived/
+# notebooks/archived/
+# scripts/archived/
