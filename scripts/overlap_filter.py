@@ -36,6 +36,8 @@ class OverlapFilter():
         distanceA, distanceB = self.calc_distances()
         mean = self.geometric_mean(distanceA, distanceB)
         if mean >= 0.9:
-            self.result = self.merge
+            self.result = 'pass'
+        else:
+            self.result = 'fail'
         
         return self.result

@@ -2,11 +2,12 @@
 Used for 3D filtering of fragment merges by constrained embedding.
 """
 
+import numpy as np
 from rdkit import Chem
 from rdkit.Chem import AllChem, rdFMCS, rdForceFieldHelpers
-import numpy as np
 
 class EmbeddingFilter():
+    """Filters molecules using constrained embedding using coordinates from original fragments."""
 
     def __init__(self, merge, fragA, fragB, synthon):
         self.merge = Chem.MolFromSmiles(merge)
@@ -46,12 +47,12 @@ class EmbeddingFilter():
         :return: substructure with coordinates added
         :rtype: RDKit rwmol
         """
-        ref_match = fragment.GetSubstructMatch(substructure)  # get atoms in frag that match substruct
+        ref_match = fragment.GetSubstructMatch(substructure)  # get frag atoms that match substruct
         rwmol = Chem.RWMol(substructure)  # create editable copy of the substructure
         rwconf = Chem.Conformer(rwmol.GetNumAtoms())  # create a conformer of the substructure
-        matches = rwmol.GetSubstructMatch(substructure)  # get matches so atoms are in the same order
+        matches = rwmol.GetSubstructMatch(substructure)  # get matches so atoms in the same order
         ref_conf = fragment.GetConformer()  # get the conformation of the actual fragment
-        for i, match in enumerate(matches):  # set atom position using the corresp atom from fragment
+        for i, match in enumerate(matches):  # set atom position using matching atom from fragment
             # Added atom position information from reference molecule
             rwconf.SetAtomPosition(match, ref_conf.GetAtomPosition(ref_match[i]))
         rwmol.AddConformer(rwconf)  # add the conformation to the substructure
@@ -142,7 +143,7 @@ class EmbeddingFilter():
         synthB = self.remove_xe(synth)
         rwmolA = self.add_coordinates(fragA, mcsA)
         rwmolB = self.add_coordinates(fragB, synthB)
-        newmolA, newmolB = self.check_overlap(rwmolA, rwmolB) # check if any atoms overlap before combining
+        newmolA, newmolB = self.check_overlap(rwmolA, rwmolB) # check if atoms overlap
         combined_mol = Chem.CombineMols(newmolA, newmolB) # combine mols to get reference molecule
         embedded = AllChem.ConstrainedEmbed(Chem.Mol(full_mol), combined_mol, 42) # do embedding
         rdForceFieldHelpers.MMFFOptimizeMolecule(embedded) # optimize the embedding
@@ -184,8 +185,8 @@ class EmbeddingFilter():
     def filter(self):
         """
         Runs the filter by embedding (if possible) the molecule, calculating the energy of
-        the constrained conformation, and comparing with the energy of the unconstrained 
-        conformations (by averaging over 10 unconstrained conformations). If the energy is 
+        the constrained conformation, and comparing with the energy of the unconstrained
+        conformations (by averaging over 10 unconstrained conformations). If the energy is
         >10-fold greater for the constrained molecule, the molecule is filtered out.
 
         :return: embedded molecule or None
@@ -196,14 +197,14 @@ class EmbeddingFilter():
             const_energy = self.calc_energy(self.embedded)
             unconst_energy = self.calc_unconstrained_energy(self.merge)
             if const_energy <= unconst_energy:
-                self.result = self.embedded
+                self.result = 'pass'
             else:
                 ratio = const_energy / unconst_energy
                 if ratio >= 10:
-                    self.result = None
+                    self.result = 'fail'
                 else:
-                    self.result = self.embedded
+                    self.result = 'pass'
         except:
-            self.result = None
+            self.result = 'fail'
 
         return self.result
