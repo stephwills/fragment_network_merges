@@ -1,3 +1,4 @@
+"""Tests the overlap filter script"""
 import unittest
 import sys
 from rdkit import Chem
@@ -20,16 +21,20 @@ passing_case = OverlapFilter(passing_mol, proteinA, proteinB)
 failing_case = OverlapFilter(failing_mol, proteinA, proteinB)
 
 class TestOverlapFilter(unittest.TestCase):
+    """Tests the OverlapFilter class"""
 
     def test_calc_distances(self):
+        """Tests the function calculate distances correctly"""
         self.assertEqual((0.934984520123839, 0.9363730036063884), passing_case.calc_distances())
     
     def test_geometric_mean(self):
+        """Tests the function calculates geometric mean"""
         mean = np.sqrt(0.934984520123839 * 0.9363730036063884)
         dists = passing_case.calc_distances()
         self.assertEqual(mean, passing_case.geometric_mean(dists[0], dists[1]))
     
     def test_filter(self):
+        """Checks that molecules correctly pass and fail the filter"""
         self.assertEqual('pass', passing_case.filter())
         self.assertEqual('fail', failing_case.filter())
 

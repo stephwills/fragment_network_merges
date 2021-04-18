@@ -2,20 +2,19 @@
 Used for 3D filtering of fragment merges by constrained embedding.
 """
 
-import numpy as np
 from rdkit import Chem
 from rdkit.Chem import AllChem, rdFMCS, rdForceFieldHelpers
 
 class EmbeddingFilter():
-    """Filters molecules using constrained embedding using coordinates from original fragments."""
+    """Filters molecules using constrained embedding using coordinates from original fragments"""
 
     def __init__(self, merge, fragA, fragB, synthon):
-        self.merge = Chem.MolFromSmiles(merge)
-        self.fragA = fragA
-        self.fragB = fragB
-        self.synthon = Chem.MolFromSmiles(synthon)
-        self.embedded = None
-        self.result = None
+        self.merge = Chem.MolFromSmiles(merge)  # convert smiles to mol
+        self.fragA = fragA  # from mol file
+        self.fragB = fragB  # from mol file
+        self.synthon = Chem.MolFromSmiles(synthon)  # convert smiles to mol
+        self.embedded = None  # store the embedded molecule
+        self.result = None  # store the filter result
 
     def get_mcs(self, full_mol, fragment):
         """
@@ -53,7 +52,6 @@ class EmbeddingFilter():
         matches = rwmol.GetSubstructMatch(substructure)  # get matches so atoms in the same order
         ref_conf = fragment.GetConformer()  # get the conformation of the actual fragment
         for i, match in enumerate(matches):  # set atom position using matching atom from fragment
-            # Added atom position information from reference molecule
             rwconf.SetAtomPosition(match, ref_conf.GetAtomPosition(ref_match[i]))
         rwmol.AddConformer(rwconf)  # add the conformation to the substructure
         return rwmol
@@ -62,12 +60,11 @@ class EmbeddingFilter():
         """
         Function calculates the distance between two atoms in 3D space.
         Relevant for when two fragments are overlapping.
-        Distance calculated using Pythagoras.
 
-        :param coord1: atom coordinates
-        :type coord1: 3D coordinates
-        :param coord2: atom coordinates
-        :type coord2: 3D coordinates
+        :param coord1: 3D atom coordinates
+        :type coord1: numpy array
+        :param coord2: 3D atom coordinates
+        :type coord2: numpy array
 
         :return: distance between the coordinates
         :rtype: float
@@ -98,13 +95,15 @@ class EmbeddingFilter():
             for j in range(confB.GetNumAtoms()):
                 posB = np.array(confB.GetAtomPosition(j))
                 dist = self.get_distance(posA, posB)
+                # if atoms closer than 0.5A, recognised as clashes
                 if dist < 0.5:
                     clashes.append(i)
                     break
-        if clashes:
-            s = sorted(clashes, reverse=True)
-            for c in s:
-                A.RemoveAtom(c)
+        if clashes:  # if any atoms identified as clashes
+            # sort in descending order (so atoms removed correctly)
+            sorted_list = sorted(clashes, reverse=True)
+            for clash in sorted_list:
+                A.RemoveAtom(clash)  # remove atoms from one fragment
         return A, B
 
     def remove_xe(self, synthon):
@@ -139,14 +138,14 @@ class EmbeddingFilter():
         :return: embedded molecule (if embedding was successful)
         :rtype: RDKit molecule
         """
-        mcsA = self.get_mcs(full_mol, fragA)
-        synthB = self.remove_xe(synth)
+        mcsA = self.get_mcs(full_mol, fragA)  # identify the atoms that came from fragment A
+        synthB = self.remove_xe(synth)  # remove the xenon from the synthon
         rwmolA = self.add_coordinates(fragA, mcsA)
         rwmolB = self.add_coordinates(fragB, synthB)
-        newmolA, newmolB = self.check_overlap(rwmolA, rwmolB) # check if atoms overlap
-        combined_mol = Chem.CombineMols(newmolA, newmolB) # combine mols to get reference molecule
-        embedded = AllChem.ConstrainedEmbed(Chem.Mol(full_mol), combined_mol, 42) # do embedding
-        rdForceFieldHelpers.MMFFOptimizeMolecule(embedded) # optimize the embedding
+        newmolA, newmolB = self.check_overlap(rwmolA, rwmolB)  # check if atoms overlap
+        combined_mol = Chem.CombineMols(newmolA, newmolB)  # combine mols to get reference molecule
+        embedded = AllChem.ConstrainedEmbed(Chem.Mol(full_mol), combined_mol, 42)  # do embedding
+        rdForceFieldHelpers.MMFFOptimizeMolecule(embedded)  # optimize the embedding
         return embedded
 
     def calc_energy(self, mol):
@@ -173,12 +172,13 @@ class EmbeddingFilter():
         :rtype: float
         """
         unconstrained_energies = []
-        for i in range(10):
+        for i in range(10):  # generate 10 conformations and calculate energy
             mol = Chem.Mol(og_mol)
             AllChem.EmbedMolecule(mol)
             AllChem.UFFOptimizeMolecule(mol)
             e = self.calc_energy(mol)
             unconstrained_energies.append(e)
+        # calculate the average of all the energies
         avg = sum(unconstrained_energies) / len(unconstrained_energies)
         return avg
 
@@ -189,22 +189,23 @@ class EmbeddingFilter():
         conformations (by averaging over 10 unconstrained conformations). If the energy is
         >10-fold greater for the constrained molecule, the molecule is filtered out.
 
-        :return: embedded molecule or None
-        :rtype: rdkit molecule or None
+        :return: returns 'pass' or 'fail'
+        :rtype: string
         """
         try:
             self.embedded = self.embedding(self.fragA, self.fragB, self.merge, self.synthon)
             const_energy = self.calc_energy(self.embedded)
             unconst_energy = self.calc_unconstrained_energy(self.merge)
+            # if the energy of the constrained conformation is less, then pass filter
             if const_energy <= unconst_energy:
                 self.result = 'pass'
             else:
+                # if constrained energy >10-fold greater, then fail filter
                 ratio = const_energy / unconst_energy
                 if ratio >= 10:
                     self.result = 'fail'
                 else:
                     self.result = 'pass'
         except:
-            self.result = 'fail'
-
+            self.result = 'fail'  # if embedding fails, then fail filter
         return self.result

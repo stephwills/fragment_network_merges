@@ -9,8 +9,8 @@ class DescriptorFilter():
     """Filters merges according to whether calculated descriptors meet some defined criteria."""
 
     def __init__(self, smiles):
-        self.smiles = smiles
-        self.result = None
+        self.smiles = smiles  # molecule smiles string
+        self.result = None  # to store the filter result
 
     def calculate_properties(self):
         """
@@ -30,7 +30,7 @@ class DescriptorFilter():
         rotat = rdMolDescriptors.CalcNumRotatableBonds(mol)
         rings = rdMolDescriptors.CalcNumAromaticRings(mol)
         violations = 0
-        # count the number of violations of some defined criteria (this can be modified)
+        # count the number of violations of the defined criteria (this can be modified)
         if molw > 350:
             violations += 1
         if alogp > 3:
@@ -50,10 +50,10 @@ class DescriptorFilter():
     def filter(self):
         """
         Function filters the smiles according to the number of descriptor violations.
-        If more than two violations, the function returns None.
+        If more than two violations, the function returns 'fail'.
 
-        :return: returns the smiles if the molecule passes; otherwise None
-        :rtype: smiles string or None
+        :return: returns 'pass' or 'fail'
+        :rtype: string
         """
         violations = self.calculate_properties()
         if violations <= 2:
