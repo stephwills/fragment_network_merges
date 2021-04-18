@@ -1,13 +1,9 @@
 """Tests the overlap filter script"""
 import unittest
-import sys
+import numpy as np
 from rdkit import Chem
 from rdkit.Chem import rdmolfiles
-import numpy as np
-
-# import scripts
-sys.path.insert(1, '/home/sabsr3/xchem/fragment_network_merges/scripts')
-from overlap_filter import OverlapFilter
+from scripts.overlap_filter import OverlapFilter
 
 # some test cases
 suppl = Chem.SDMolSupplier('tests/test_embedded_mols.sdf')
@@ -16,7 +12,6 @@ passing_mol = mols[0]
 failing_mol = mols[1]
 proteinA = rdmolfiles.MolFromPDBFile('tests/Mpro-x0107_0A_apo-desolv.pdb')
 proteinB = rdmolfiles.MolFromPDBFile('tests/Mpro-x0678_0A_apo-desolv.pdb')
-
 passing_case = OverlapFilter(passing_mol, proteinA, proteinB)
 failing_case = OverlapFilter(failing_mol, proteinA, proteinB)
 
