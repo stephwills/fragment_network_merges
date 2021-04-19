@@ -2,7 +2,7 @@
 import unittest
 import numpy as np
 from rdkit import Chem
-from scripts.interaction_fp_filter import InteractionFPFilter
+from scripts.interaction_fp_filter import *
 
 # create test cases
 mol = 'tests/x0107-x0678t-0.minimised.mol'
@@ -15,16 +15,17 @@ class TestInteractionFPFilter(unittest.TestCase):
 
     def test_make_fp(self):
         """Tests the interaction fp is correctly calculated"""
-        test_case = InteractionFPFilter(mol, fragmentA, fragmentB, protein)
-        test_mol = test_case.get_mol(mol)
+        test_mol = get_mol(mol)
+        test_protein = get_protein(protein)
+        test_fp = make_fp(test_protein, test_mol)
         lst = [1, 0, 0, 1, 0, 0, 0, 0]
-        self.assertListEqual(list(test_case.make_fp(test_mol)), lst)
+        self.assertListEqual(list(test_fp), lst)
     
     def test_similarity_filter(self):
         """Checks that molecules correctly pass and fail the filter"""
-        test_case = InteractionFPFilter(mol, fragmentA, fragmentB, protein)
+        test_case = similarity_filter(mol, fragmentA, fragmentB, protein)
         result = 'pass'
-        self.assertEqual(test_case.similarity_filter(), result)
+        self.assertEqual(test_case, result)
 
 if __name__ == '__main__':
     unittest.main()
