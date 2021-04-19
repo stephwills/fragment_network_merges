@@ -11,7 +11,7 @@ fragmentB = 'tests/Mpro-x0678_0A.mol'
 protein = 'tests/Mpro-x0107_0A_apo-desolv.pdb'
 
 class TestInteractionFPFilter(unittest.TestCase):
-    """Tests the InteractionFPFilter class"""
+    """Tests the interaction fp filter functions"""
 
     def test_make_fp(self):
         """Tests the interaction fp is correctly calculated"""

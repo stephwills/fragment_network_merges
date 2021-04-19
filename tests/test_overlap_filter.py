@@ -14,7 +14,7 @@ proteinA = rdmolfiles.MolFromPDBFile('tests/Mpro-x0107_0A_apo-desolv.pdb')
 proteinB = rdmolfiles.MolFromPDBFile('tests/Mpro-x0678_0A_apo-desolv.pdb')
 
 class TestOverlapFilter(unittest.TestCase):
-    """Tests the OverlapFilter class"""
+    """Tests the overlap filter functions"""
 
     def test_calc_distances(self):
         """Tests the function calculate distances correctly"""
