@@ -3,12 +3,14 @@ import pyrosetta
 from rdkit import Chem
 from fragmenstein import Victor
 
-def place_with_fragmenstein(smiles, fragmentA, fragmentB, protein, output_directory):
+def place_with_fragmenstein(name, smiles, fragmentA, fragmentB, protein, output_directory):
     """
     Function places the merge in the protein using Fragmenstein. Minimisation is performed
     using pyrosetta. Creates an output folder containing .json file with metrics that
     can be used for filtering.
 
+    :param name: name of the merge (to name the output subfolder/files)
+    :type name: string
     :param smiles: smiles of the merge
     :type smiles: string
     :param fragmentA: fragment A file
@@ -29,6 +31,6 @@ def place_with_fragmenstein(smiles, fragmentA, fragmentB, protein, output_direct
                covalent_resi= '1A'
                )
     v.place(smiles=smi,
-            long_name=output_directory,
+            long_name=name,  # to name the files
             )
     v.make_pse()  # creates a pse file for pymol
