@@ -188,14 +188,14 @@ class Merge():
         synthons = self.get_synthons(fragmentB)
         # create empty dictionary to store results
         all_expansions = {}
-
         with driver.session() as session:
             number = 0
             total_expansions = 0
             expanded_synthons = 0
             for synthon in synthons:  # expand fragment A using each synthon
+                print(f'Running synthon {number}')
                 expansions = session.read_transaction(self.find_expansions, fragmentA, synthon)
-                all_expansions[synthon] = expansions  # store in dictionary with the synthon as key
+                all_expansions[synthon] = list(expansions)  # store in dictionary with the synthon as key
                 print(f'Synthon {number}: found {len(expansions)} expansions')
                 number += 1
                 total_expansions += len(expansions)
