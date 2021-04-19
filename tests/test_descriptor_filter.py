@@ -3,7 +3,7 @@ import unittest
 from scripts.descriptor_filter import calculate_properties, descriptor_filter
 
 class TestDescriptorFilter(unittest.TestCase):
-    """Tests the DescriptorFilter class"""
+    """Tests the descripter filter functions"""
 
     def test_calculate_properties(self):
         """Checks that a molecule's properties and number of violations are calculated correctly"""

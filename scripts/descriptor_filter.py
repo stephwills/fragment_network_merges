@@ -10,6 +10,9 @@ def calculate_properties(smiles):
     Function to calculate various QED properties of the compounds.
     Checks the properties against some defined criteria and counts the number of 'violations'.
 
+    :param smiles: smiles of the merge
+    :type smiles: smiles string
+
     :return: the number of 'violations' of the descriptor criteria
     :rtype: int
     """
@@ -44,6 +47,9 @@ def descriptor_filter(smiles):
     """
     Function filters the smiles according to the number of descriptor violations.
     If more than two violations, the function returns 'fail'.
+
+    :param smiles: smiles of the merge
+    :type smiles: smiles string
 
     :return: returns 'pass' or 'fail'
     :rtype: string
