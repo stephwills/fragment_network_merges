@@ -6,54 +6,59 @@ from rdkit import Chem
 from rdkit.Chem import rdShapeHelpers
 import numpy as np
 
-class OverlapFilter():
-    """Filters molecules that have >5% overlap with the protein"""
+def geometric_mean(distA, distB):
+    """
+    Calculates the geometric mean between the two distances.
 
-    def __init__(self, merge, proteinA, proteinB):
-        self.merge = merge  # molecule post-embedding
-        self.proteinA = proteinA  # the protein associated with fragment A
-        self.proteinB = proteinB  # the protein associated with fragment B
-        self.result = None  # to store the result of the filter
+    :param distA: distance between the merge and protein A
+    :type distA: float
+    :param distB: distance between the merge and protein B
+    :type distB: float
 
-    def geometric_mean(self, distA, distB):
-        """
-        Calculates the geometric mean between the two distances.
+    :return: mean distance
+    :rtype: float
+    """
+    return np.sqrt(distA * distB)
 
-        :param distA: distance between the merge and protein A
-        :type distA: float
-        :param distB: distance between the merge and protein B
-        :type distB: float
+def calc_distances(merge, proteinA, proteinB):
+    """
+    Calculate the distance between the merge and the proteins.
+    The distance represents the proportion of the volume of the smaller molecule
+    that protrudes from the larger molecule (i.e. 1 - overlap).
 
-        :return: mean distance
-        :rtype: float
-        """
-        return np.sqrt(distA * distB)
+    :param merge: the merge molecule (after embedding)
+    :type merge: RDKit molecule
+    :param proteinA: protein associated with fragment A
+    :type proteinA: RDKit mol from pdb file
+    :param proteinB: protein associated with fragment B
+    :type proteinB: RDKit mol from pdb file
 
-    def calc_distances(self):
-        """
-        Calculate the distance between the merge and the proteins.
-        The distance represents the proportion of the volume of the smaller molecule
-        that protrudes from the larger molecule (i.e. 1 - overlap).
+    :return: distance between the merge and protein A and protein B
+    :rtype: float
+    """
+    distanceA = rdShapeHelpers.ShapeProtrudeDist(merge, proteinA)
+    distanceB = rdShapeHelpers.ShapeProtrudeDist(merge, proteinB)
+    return distanceA, distanceB
 
-        :return: distance between the merge and protein A and protein B
-        :rtype: float
-        """
-        distanceA = rdShapeHelpers.ShapeProtrudeDist(self.merge, self.proteinA)
-        distanceB = rdShapeHelpers.ShapeProtrudeDist(self.merge, self.proteinB)
-        return distanceA, distanceB
+def overlap_filter(merge, proteinA, proteinB):
+    """
+    Rules out molecules that have a >10% overlap with the protein (i.e. >90%
+    protrusion).
 
-    def filter(self):
-        """
-        Rules out molecules that have a >10% overlap with the protein (i.e. >90%
-        protrusion).
+    :param merge: the merge molecule (after embedding)
+    :type merge: RDKit molecule
+    :param proteinA: protein associated with fragment A
+    :type proteinA: RDKit mol from pdb file
+    :param proteinB: protein associated with fragment B
+    :type proteinB: RDKit mol from pdb file
 
-        :return: returns 'pass' or 'fail'
-        :rtype: string
-        """
-        distanceA, distanceB = self.calc_distances()  # calculate distances
-        mean = self.geometric_mean(distanceA, distanceB)  # calculate mean of distances
-        if mean >= 0.9:  # if protrusion > 90% (overlap < 10%)
-            self.result = 'pass'
-        else:
-            self.result = 'fail'
-        return self.result
+    :return: returns 'pass' or 'fail'
+    :rtype: string
+    """
+    distanceA, distanceB = calc_distances(merge, proteinA, proteinB)  # calculate distances
+    mean = geometric_mean(distanceA, distanceB)  # calculate mean of distances
+    if mean >= 0.9:  # if protrusion > 90% (overlap < 10%)
+        result = 'pass'
+    else:
+        result = 'fail'
+    return result
