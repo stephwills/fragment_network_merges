@@ -204,7 +204,7 @@ class Merge():
         print(f'{total_expansions} expansions from {expanded_synthons} out of {len(synthons)} synthons')
 
         # save as json file
-        filename = nameA + '_' + nameB + '.json'
+        filename = 'data/' + nameA + '_' + nameB + '.json'
         with open(filename, 'w') as f:
             json.dump(all_expansions, f)
 
