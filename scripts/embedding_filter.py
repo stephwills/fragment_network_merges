@@ -2,6 +2,7 @@
 Used for 3D filtering of fragment merges by constrained embedding.
 """
 
+import numpy as np
 from rdkit import Chem
 from rdkit.Chem import AllChem, rdFMCS, rdForceFieldHelpers
 
