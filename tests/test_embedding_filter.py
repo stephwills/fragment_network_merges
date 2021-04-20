@@ -40,8 +40,8 @@ class TestEmbeddingFilter(unittest.TestCase):
         """Checks that the filter correctly identifies molecules that can be embedded"""
         passing_case = embedding_filter(passing_mol, fragmentA, fragmentB, synthon)
         failing_case = embedding_filter(failing_mol, fragmentA, fragmentB, synthon)
-        self.assertEqual(passing_case, 'pass')
-        self.assertEqual(failing_case, 'fail')
+        self.assertEqual(passing_case[1], 'pass')
+        self.assertEqual(failing_case[1], 'fail')
 
 if __name__ == '__main__':
     unittest.main()
