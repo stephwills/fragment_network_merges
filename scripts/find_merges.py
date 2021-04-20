@@ -6,7 +6,6 @@ Uses code from https://github.com/tdudgeon/fragment-network-merges.
 import itertools
 import getpass
 import json
-import pandas as pd
 import numpy as np
 from neo4j import GraphDatabase
 from rdkit import Chem
