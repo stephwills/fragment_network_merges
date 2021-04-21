@@ -26,8 +26,5 @@ class TestPreprocessing(unittest.TestCase):
         dist = 3.9218478311448566
         self.assertEqual(dist, get_distance_between_fragments(test_fA, test_fB))
 
-# if __name__ == '__main__':
-#     unittest.main()
-
-mol = Chem.MolFromSmiles('O=C(NC=1C=CC=CC1)NC=2C=CC=NC2')
-print(Chem.MolToSmiles(mol))
+if __name__ == '__main__':
+    unittest.main()
