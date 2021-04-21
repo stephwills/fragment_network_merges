@@ -156,4 +156,3 @@ def check_fragment_pairs(fragment_pairs, name_pairs, target, chain):
             filtered_name_pairs.append(name_pair)
 
     return filtered_fragment_pairs, filtered_name_pairs
-
