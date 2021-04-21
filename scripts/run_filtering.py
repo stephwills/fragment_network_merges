@@ -1,10 +1,9 @@
-"""Runs the merge generation and filtering"""
+"""Runs the filtering of the merges for one pair"""
 
 import os
 from joblib import Parallel, delayed
 from rdkit import Chem
 from rdkit.Chem import rdmolfiles
-from scripts.find_merges import *
 from scripts.descriptor_filter import *
 from scripts.embedding_filter import *
 from scripts.overlap_filter import *
