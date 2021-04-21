@@ -2,6 +2,7 @@
 import unittest
 from scripts.find_merges import *
 
+# update/check tests to reflect change in script to filter synthons
 # test cases - two fragments to merge and a fake smiles
 names = ['test_x0107', 'test_x1382', 'fail_case']
 smiles = ['CC(=O)Nc1cnccc1C', 'CC(NC(=O)CCl)c1cccc(Cl)c1', 'CC(NC(=O)CCl)c1cccc(Cl)c1s']

@@ -164,6 +164,22 @@ def find_expansions(tx, smiles, synthon):
         expansions.add(node['smiles'])
     return expansions
 
+def filter_synthons(synthon):
+    """
+    Counts the number of carbons in the synthon. Keep synthons that have at least three carbons.
+
+    :param synthon: synthon of interest
+    :type synthon: smiles string
+
+    :return: synthon smiles or None
+    :rtype: smiles string or None
+    """
+    carbon = Chem.MolFromSmarts('[#6]')
+    synthon_mol = Chem.MolFromSmiles(synthon)
+    num_carbons = len(synthon_mol.GetSubstructMatches(carbon))
+    if num_carbons >= 3:
+        return synthon
+
 def get_expansions(fragments, names):
     """
     Function executes the whole process, generating synthons for fragment B and using them to
@@ -180,7 +196,10 @@ def get_expansions(fragments, names):
     print(f'Expanding fragment A: {nameA} with synthons of fragment B: {nameB}')
 
     # generate the synthons from fragment B
-    synthons = get_synthons(fragmentB)
+    unfiltered_synthons = get_synthons(fragmentB)
+    # remove None values from list
+    synthons = [filter_synthons(syn) for syn in unfiltered_synthons]
+
     # create empty dictionary to store results
     all_expansions = {}
     with driver.session() as session:
@@ -204,4 +223,4 @@ def get_expansions(fragments, names):
         json.dump(all_expansions, f)
 
     # return results
-    return all_expansions
+    # return all_expansions
