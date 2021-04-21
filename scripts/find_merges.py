@@ -197,8 +197,12 @@ def get_expansions(fragments, names):
 
     # generate the synthons from fragment B
     unfiltered_synthons = get_synthons(fragmentB)
-    # remove None values from list
+
+    # filter synthons
     synthons = [filter_synthons(syn) for syn in unfiltered_synthons]
+    # remove None values from list
+    synthons = list(filter(None, synthons))
+    print(f'{len(synthons)} synthons remaining after filtering')
 
     # create empty dictionary to store results
     all_expansions = {}
