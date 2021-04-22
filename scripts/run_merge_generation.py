@@ -4,10 +4,6 @@ from joblib import Parallel, delayed
 from scripts.find_merges import *
 from scripts.preprocessing import *
 
-# target = 'XXX'
-# chain = 'XXX'
-# fragments = ['XXX', 'XXX', 'XXX']
-
 def preprocess_fragments(target, chain, fragment_names):
     """
     Preprocess the list of fragments and get all the possible fragment pairs
@@ -22,8 +18,11 @@ def preprocess_fragments(target, chain, fragment_names):
     smiles_pairs, name_pairs = check_fragment_pairs(smiles_pairs, name_pairs, target, chain)
     return smiles_pairs, name_pairs
 
-# smiles_pairs, name_pairs = proprocess_fragments(target, chain, fragments)
-# Parallel(n_jobs = 4)(delayed(get_expansions)(smiles_pair, name_pair) for smiles_pair, name_pair in zip(smiles_pairs, name_pairs))
+target = 'Nsp13'
+chain = '0B'
+frags = ['x0034', 'x0176', 'x0183', 'x0208', 'x0121', 'x0246', 'x0276', 'x0283', 'x0311', 'x0438']
 
-fragment_names = ['x0104', 'x0107']
-print(preprocess_fragments('Mpro', '0A', fragment_names))
+smiles_pairs, name_pairs = preprocess_fragments(target, chain, frags)
+
+for smiles_pair, name_pair in zip(smiles_pairs, name_pairs):
+    get_expansions(smiles_pair, name_pair)
