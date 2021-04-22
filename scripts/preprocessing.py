@@ -1,9 +1,18 @@
 """Checks the distance between the fragments"""
 
 import os
+import json
 import numpy as np
 from rdkit import Chem
 from rdkit.Chem import rdmolfiles
+
+def open_json(file):
+    """
+    Function to open json file
+    """
+    f = open(file, 'r')
+    data = json.load(f)
+    return data
 
 def get_smiles(target, fragment, chain):
     """
@@ -58,7 +67,7 @@ def get_mol(target, fragment, chain):
 
 def get_files(target, fragment, chain):
     """
-    Function to get the relevant files for each fragment.
+    Function to get the relevant files for each fragment for filtering.
     File paths are like this: TARGET/aligned/TARGET-FRAGMENT_CHAIN
     e.g. Mpro/aligned/Mpro-x0464_0A
 
@@ -69,15 +78,14 @@ def get_files(target, fragment, chain):
     :param chain: the protein chain, e.g. '0A'
     :type chain: string
 
-    :return: smiles_file, mol_file, protein_file
+    :return: mol_file, protein_file
     :rtype: filepaths (strings)
     """
     fname_part = f'{target}-{fragment}_{chain}'  # the first part of the filenames/folder names
     path = os.path.join(target, 'aligned', fname_part)
-    smiles_file = os.path.join(path, f'{fname_part}_smiles.txt')
     mol_file = os.path.join(path, f'{fname_part}.mol')
     protein_file = os.path.join(path, f'{fname_part}_apo-desolv.pdb')
-    return smiles_file, mol_file, protein_file
+    return mol_file, protein_file
 
 def get_distance(coord1, coord2):
     """
@@ -99,7 +107,7 @@ def get_distance_between_fragments(fragmentA, fragmentB):
     """
     Function to calculate the distance between two fragments. Calculates
     the distance between each pair of atoms in the two fragments, and
-    returns the average. Used to filter pairs that are too far apart.
+    returns the shortest distance. Used to filter pairs that are too far apart.
 
     :param fragmentA: fragment A molecule
     :type fragmentA: RDKit molecule
@@ -125,9 +133,8 @@ def get_distance_between_fragments(fragmentA, fragmentB):
             distance = get_distance(posA, posB)  # calculate distance
             distances.append(distance)  # append to list
     
-    # get the average of the distances to get an approximation for the dist between the fragments
-    avg_distance = sum(distances) / len(distances)
-    return avg_distance
+    # get the shortest distance between the fragments
+    return min(distances)
 
 def check_fragment_pairs(fragment_pairs, name_pairs, target, chain):
     """
@@ -148,11 +155,16 @@ def check_fragment_pairs(fragment_pairs, name_pairs, target, chain):
         fragmentA = get_mol(target, name_pair[0], chain)
         fragmentB = get_mol(target, name_pair[1], chain)
 
-        # if distance between fragments is >10A, remove this pair
+        # if distance between fragments is >3A, remove this pair
         distance = get_distance_between_fragments(fragmentA, fragmentB)
 
-        if distance < 10:
+        if distance < 3:
             filtered_fragment_pairs.append(fragment_pair)
             filtered_name_pairs.append(name_pair)
+    
+    # write fragment pairs list to json file
+    filename = os.path.join('data', 'fragment_pairs.json')
+    with open(filename, 'w') as f:
+        json.dump(filtered_name_pairs, f)
 
     return filtered_fragment_pairs, filtered_name_pairs
