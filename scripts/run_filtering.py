@@ -1,6 +1,7 @@
 """Runs the filtering of the merges for one pair"""
 
 import os
+import argparse
 from joblib import Parallel, delayed
 from rdkit import Chem
 from rdkit.Chem import rdmolfiles
@@ -10,31 +11,48 @@ from scripts.overlap_filter import *
 from scripts.fragmenstein_filter import *
 from scripts.interaction_fp_filter import *
 
-def process_one_smi(name, smiles, fragmentA, fragmentB, synthon, proteinA, proteinB, output_directory):
+# get the file containing all the fragment pairs from the command line 
+parser = argparse.ArgumentParser()
+parser.add_argument('-m', '--merge_file', help='the json file containing the merges')
+parser.add_argument('-a', '--fragment_A_file', help='the mol file for fragment A')
+parser.add_argument('-b', '--fragment_B_file', help='the mol file for fragment B')
+parser.add_argument('-p', '--protein_A_file', help='the pdb file containing the protein associated with fragment A')
+parser.add_argument('-q', '--protein_B_file', help='the pdb file containing the protein associated with fragment B')
+parser.add_argument('-o', '--output_directory', help='the directory to write the fragmenstein files to')
+
+# get the arguments
+args = parser.parse_args()
+
+# get the dictionary of merges - keys represent synthons, smiles 
+merges_dict = open_json(args.merge_file)
+synthons, smiles = get_merges(merges_dict)
+num = range(len(smiles))  # used to give all the smiles an identifier
+
+# get all the files needed for the function
+fragmentA = args.fragment_A_file
+fragmentB = args.fragment_B_file
+proteinA = args.protein_A_file
+proteinB = args.protein_B_file
+output_directory = args.output_directory
+
+def process_one_smi(num, smiles, synthon):
     """
     Run all the filters on one smiles. If the smiles fails a filter, the function returns None.
     If it passes all the filters, it returns the smiles.
 
-    :param name: the name of the merge (for naming output files - needs to be unique for each merge)
-    :type name: string
+    :param num: smiles are numbered to create an identifier (for naming output files etc.)
+    :type num: int
     :param smiles: the smiles string of the merge
     :type smiles: string
-    :param fragmentA: the filepath for fragment A mol file
-    :type fragmentA: mol file
-    :param fragmentB: the filepath for fragment B mol file
-    :type fragmentB: mol file
     :param synthon: the smiles of the synthon used for the expansion
     :type synthon: string
-    :proteinA: the filepath to the protein structure associated with fragment A
-    :type proteinA: pdb file
-    :proteinB: the filepath to the protein structure associated with fragment B
-    :type proteinB: pdb file
-    :param output_directory: directory for the fragmenstein output files
-    :type output_directory: filepath
 
     :return: smiles (if all filters successful) or None
     :rtype: string or None
     """
+    # create unique 'name' for the molecule including the fragment merge and smiles number
+    merge_name = args.merge_file.replace('.json', '').replace('data/', '')
+    name = merge_name + '_' + str(num)
     # get molecules (some functions take in molecule rather than file)
     merge_mol = Chem.MolFromSmiles(smiles)
     fragmentA_mol = rdmolfiles.MolFromMolFile(fragmentA)
@@ -70,4 +88,4 @@ def process_one_smi(name, smiles, fragmentA, fragmentB, synthon, proteinA, prote
     else:
         return smiles
 
-results = Parallel(n_jobs = 4)(delayed(process_one_smi)(smi) for smi in list_of_smiles))
+results = Parallel(n_jobs = 4)(delayed(process_one_smiles)(n, smi, syn) for n, smi, syn in zip(num, smiles, synthons))

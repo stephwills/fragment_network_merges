@@ -1,4 +1,4 @@
-"""Checks the distance between the fragments"""
+"""Functions for preprocessing files/fragments before running merge generation/filtering"""
 
 import os
 import json
@@ -13,6 +13,27 @@ def open_json(file):
     f = open(file, 'r')
     data = json.load(f)
     return data
+
+def get_merges(merge_dict):
+    """
+    Get a list of synthons and matching list of smiles from the merge dictionary
+    in the json file. These are then passed into the process_one_smi function
+    for filtering.
+
+    :param merge_dict: this is the dictionary containing all the merges
+    :type merge_dict: dictionary
+
+    :return: lists of synthons and smiles
+    :rtype: lists of strings
+    """
+    synthons = []
+    smiles = []
+    for synthon in merge_dict:
+        for smi in merge_dict[synthon]:
+            if smi:
+                synthons.append(synthon)
+                smiles.append(smi)
+    return synthons, smiles
 
 def get_smiles(target, fragment, chain):
     """
