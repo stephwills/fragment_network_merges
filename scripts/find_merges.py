@@ -104,7 +104,7 @@ def add_required_synthons(labels, synthon):
     :param synthon: smiles string containing synthon with Xe atom
     :type synthon: string
     """
-    if synthon.count('[Xe]') > 0:
+    if synthon.count('[Xe]') == 1:
         labels.add(synthon)
 
 def find_synthons(tx, smiles):

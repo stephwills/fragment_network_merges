@@ -18,7 +18,6 @@ parser.add_argument('-m', '--merge_file', help='the json file containing the mer
 parser.add_argument('-a', '--fragment_A', help='fragment A ID')
 parser.add_argument('-b', '--fragment_B', help='fragment B ID')
 parser.add_argument('-t', '--target', help='the protein target')
-parser.add_argument('-c', '--chain', help='the protein chain')
 parser.add_argument('-o', '--output_directory', help='the directory to write the fragmenstein files to')
 
 # get the arguments
@@ -30,8 +29,8 @@ synthons, smiles = get_merges(merges_dict)
 num = range(len(smiles))  # used to give all the smiles an identifier
 
 # get all the files needed for the function
-fragmentA, proteinA = get_files(args.target, args.fragment_A, args.chain)
-fragmentB, proteinB = get_files(args.target, args.fragment_B, args.chain)
+fragmentA, proteinA = get_files(args.target, args.fragment_A)
+fragmentB, proteinB = get_files(args.target, args.fragment_B)
 output_directory = args.output_directory
 
 def process_one_smi(num, smiles, synthon):
@@ -92,14 +91,14 @@ def process_one_smi(num, smiles, synthon):
                     else:
                         return smiles
 
-results = []
-#results = Parallel(n_jobs = 4)(delayed(process_one_smi)(n, smi, syn) for n, smi, syn in zip(num, smiles, synthons))
-for n, smi, syn in zip(num, smiles, synthons):
-    res = process_one_smi(n, smi, syn)
-    print(res)
-    results.append(res)
+# to test
+# results = []
+# for n, smi, syn in zip(num, smiles, synthons):
+#     res = process_one_smi(n, smi, syn)
+#     results.append(res)
 
-print(results)
-print(smiles)
+results = Parallel(n_jobs = 4)(delayed(process_one_smi)(n, smi, syn) for n, smi, syn in zip(num, smiles, synthons))
 
-
+filename = 'data/filtered_mols/' + args.fragment_A + '_' + args.fragment_B + '.json'
+with open(filename, 'w') as f:
+    json.dump(results, f)
