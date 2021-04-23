@@ -141,3 +141,8 @@ data/test_x0107_test_x1382.json
 # ignore data files
 Mpro/
 nsp13/
+
+#
+run_merge_generation.ipynb
+scripts/test_fragmenstein.py
+.vscode
