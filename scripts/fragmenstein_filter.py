@@ -32,7 +32,7 @@ def place_smiles(name, smiles, fragmentA, fragmentB, protein, output_directory):
                pdb_filename=protein,  # file name of apo protein
                covalent_resi= '1A'
                )
-    v.place(smiles=smi,
+    v.place(smiles=smiles,
             long_name=name,  # to name the files
             )
     v.make_pse()  # creates a pse file for pymol

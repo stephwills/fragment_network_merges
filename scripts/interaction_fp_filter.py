@@ -17,7 +17,9 @@ def get_protein(protein):
     :return: protein
     :rtype: ODDT protein
     """
-    return next(toolkit.readfile('pdb', protein))
+    protein = next(toolkit.readfile('pdb', protein))
+    protein.protein = True
+    return protein
 
 def get_mol(mol):
     """
