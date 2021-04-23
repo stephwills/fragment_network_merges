@@ -35,7 +35,7 @@ def get_merges(merge_dict):
                 smiles.append(smi)
     return synthons, smiles
 
-def get_smiles(target, fragment, chain):
+def get_smiles(target, fragment):
     """
     Function to get the relevant files for each fragment.
     File paths are like this: TARGET/aligned/TARGET-FRAGMENT_CHAIN
@@ -43,15 +43,13 @@ def get_smiles(target, fragment, chain):
 
     :param target: the protein target, e.g. 'Mpro'
     :type target: string
-    :param fragment: the fragment i.d., e.g. 'x0107'
+    :param fragment: the fragment i.d., e.g. 'x0107_0A'
     :type fragment: string
-    :param chain: the protein chain, e.g. '0A'
-    :type chain: string
 
     :return: smiles string
     :rtype: string
     """
-    fname_part = f'{target}-{fragment}_{chain}'  # the first part of the filenames/folder names
+    fname_part = f'{target}-{fragment}'  # the first part of the filenames/folder names
     path = os.path.join(target, 'aligned', fname_part)
     smiles_path = os.path.join(path, f'{fname_part}_smiles.txt')
     smiles_file = open(smiles_path)  # open the file to get smiles
@@ -64,7 +62,7 @@ def get_smiles(target, fragment, chain):
     smiles = Chem.MolToSmiles(mol)
     return smiles
 
-def get_mol(target, fragment, chain):
+def get_mol(target, fragment):
     """
     Function to get the relevant files for each fragment.
     File paths are like this: TARGET/aligned/TARGET-FRAGMENT_CHAIN
@@ -74,19 +72,17 @@ def get_mol(target, fragment, chain):
     :type target: string
     :param fragment: the fragment i.d., e.g. 'x0107'
     :type fragment: string
-    :param chain: the protein chain, e.g. '0A'
-    :type chain: string
 
     :return: smiles string
     :rtype: string
     """
-    fname_part = f'{target}-{fragment}_{chain}'  # the first part of the filenames/folder names
+    fname_part = f'{target}-{fragment}'  # the first part of the filenames/folder names
     path = os.path.join(target, 'aligned', fname_part)
     mol_file = os.path.join(path, f'{fname_part}.mol')
     mol = rdmolfiles.MolFromMolFile(mol_file)
     return mol
 
-def get_files(target, fragment, chain):
+def get_files(target, fragment):
     """
     Function to get the relevant files for each fragment for filtering.
     File paths are like this: TARGET/aligned/TARGET-FRAGMENT_CHAIN
@@ -96,13 +92,11 @@ def get_files(target, fragment, chain):
     :type target: string
     :param fragment: the fragment i.d., e.g. 'x0107'
     :type fragment: string
-    :param chain: the protein chain, e.g. '0A'
-    :type chain: string
 
     :return: mol_file, protein_file
     :rtype: filepaths (strings)
     """
-    fname_part = f'{target}-{fragment}_{chain}'  # the first part of the filenames/folder names
+    fname_part = f'{target}-{fragment}'  # the first part of the filenames/folder names
     path = os.path.join(target, 'aligned', fname_part)
     mol_file = os.path.join(path, f'{fname_part}.mol')
     protein_file = os.path.join(path, f'{fname_part}_apo-desolv.pdb')
@@ -157,7 +151,7 @@ def get_distance_between_fragments(fragmentA, fragmentB):
     # get the shortest distance between the fragments
     return min(distances)
 
-def check_fragment_pairs(fragment_pairs, name_pairs, target, chain):
+def check_fragment_pairs(fragment_pairs, name_pairs, target):
     """
     Function to filter the list of fragment pairs for those that are close
     enough to merge.
@@ -173,13 +167,13 @@ def check_fragment_pairs(fragment_pairs, name_pairs, target, chain):
     filtered_fragment_pairs = []
     filtered_name_pairs = []
     for fragment_pair, name_pair in zip(fragment_pairs, name_pairs):
-        fragmentA = get_mol(target, name_pair[0], chain)
-        fragmentB = get_mol(target, name_pair[1], chain)
+        fragmentA = get_mol(target, name_pair[0])
+        fragmentB = get_mol(target, name_pair[1])
 
-        # if distance between fragments is >3A, remove this pair
+        # if distance between fragments is >5A, remove this pair
         distance = get_distance_between_fragments(fragmentA, fragmentB)
 
-        if distance < 3:
+        if distance < 5:
             filtered_fragment_pairs.append(fragment_pair)
             filtered_name_pairs.append(name_pair)
     
