@@ -18,9 +18,10 @@ def preprocess_fragments(target, chain, fragment_names):
     smiles_pairs, name_pairs = check_fragment_pairs(smiles_pairs, name_pairs, target, chain)
     return smiles_pairs, name_pairs
 
-target = 'Nsp13'
+target = 'nsp13'
 chain = '0B'
-frags = ['x0034', 'x0176', 'x0183', 'x0208', 'x0121', 'x0246', 'x0276', 'x0283', 'x0311', 'x0438']
+frags = ['x0034', 'x0176']
+# frags = ['x0034', 'x0176', 'x0183', 'x0208', 'x0121', 'x0246', 'x0276', 'x0283', 'x0311', 'x0438']
 
 smiles_pairs, name_pairs = preprocess_fragments(target, chain, frags)
 
