@@ -14,10 +14,12 @@ from scripts.interaction_fp_filter import *
 
 # get the file containing all the fragment pairs from the command line 
 parser = argparse.ArgumentParser()
-parser.add_argument('-m', '--merge_file', help='the json file containing the merges')
-parser.add_argument('-a', '--fragment_A', help='fragment A ID')
-parser.add_argument('-b', '--fragment_B', help='fragment B ID')
-parser.add_argument('-t', '--target', help='the protein target')
+parser.add_argument('-f', '--merge_file', help='the json file containing the merges')
+parser.add_argument('-m', '--merge', help='the name of the merge, e.g. x0107_0A_x0434_0A')
+parser.add_argument('-a', '--fragment_A', help='fragment A mol file')
+parser.add_argument('-b', '--fragment_B', help='fragment B mol file')
+parser.add_argument('-p', '--protein_A', help='protein pdb file associated with fragment A')
+parser.add_argument('-q', '--protein_B', help='protein pdb file associated with fragment B')
 parser.add_argument('-o', '--output_directory', help='the directory to write the fragmenstein files to')
 
 # get the arguments
@@ -29,9 +31,12 @@ synthons, smiles = get_merges(merges_dict)
 num = range(len(smiles))  # used to give all the smiles an identifier
 
 # get all the files needed for the function
-fragmentA, proteinA = get_files(args.target, args.fragment_A)
-fragmentB, proteinB = get_files(args.target, args.fragment_B)
+fragmentA = args.fragment_A
+fragmentB = args.fragment_B
+proteinA = args.protein_A
+proteinB = args.protein_B
 output_directory = args.output_directory
+merge_name = args.merge
 
 def process_one_smi(num, smiles, synthon):
     """
@@ -49,7 +54,6 @@ def process_one_smi(num, smiles, synthon):
     :rtype: string or None
     """
     # create unique 'name' for the molecule including the fragment merge and smiles number
-    merge_name = args.merge_file.replace('.json', '').replace('data/', '')
     name = merge_name + '_' + str(num)
     # get molecules (some functions take in molecule rather than file)
     merge_mol = Chem.MolFromSmiles(smiles)
@@ -99,6 +103,6 @@ def process_one_smi(num, smiles, synthon):
 
 results = Parallel(n_jobs = 4)(delayed(process_one_smi)(n, smi, syn) for n, smi, syn in zip(num, smiles, synthons))
 
-filename = 'data/filtered_mols/' + args.fragment_A + '_' + args.fragment_B + '.json'
+filename = merge_name + '_filtered' + '.json'
 with open(filename, 'w') as f:
     json.dump(results, f)
