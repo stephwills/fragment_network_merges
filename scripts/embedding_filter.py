@@ -2,6 +2,7 @@
 Used for 3D filtering of fragment merges by constrained embedding.
 """
 
+import numpy as np
 from rdkit import Chem
 from rdkit.Chem import AllChem, rdFMCS, rdForceFieldHelpers
 
@@ -206,4 +207,7 @@ def embedding_filter(merge, fragA, fragB, synthon):
                 result = 'pass'
     except:
         result = 'fail'  # if embedding fails, then fail filter
-    return result
+    if result == 'pass':
+        return embedded, result  # embedded molecule needed for next filter
+    elif result == 'fail':
+        return None, result
