@@ -11,14 +11,22 @@ def get_protein(protein):
     """
     Function loads the protein from the pdb file.
 
+    :param protein: the protein file
+    :type protein: pdb file
+
     :return: protein
     :rtype: ODDT protein
     """
-    return next(toolkit.readfile('pdb', protein))
+    protein = next(toolkit.readfile('pdb', protein))
+    protein.protein = True
+    return protein
 
 def get_mol(mol):
     """
     Function loads the molecule from the mol file.
+
+    :param mol: mol to read (fragment or placed merge)
+    :type mol: mol file
 
     :return: molecule
     :rtype: ODDT molecule
@@ -28,6 +36,11 @@ def get_mol(mol):
 def make_fp(protein, mol):
     """
     Function creates interaction fingerprint between the molecule and protein.
+
+    :param protein: protein loaded from file
+    :type protein: ODDT protein
+    :param mol: mol loaded from file
+    :type mol: ODDT mol
 
     :return: fingerprint
     :rtype: list
@@ -40,6 +53,15 @@ def similarity_filter(merge, fragmentA, fragmentB, prot):
     Function compares the interaction fingerprints between the fragment and the protein,
     and the merge and the protein. Calculates similarity (using dice). Keeps molecules
     with similarity coefficient of greater than 0.6.
+
+    :param merge: the file of the merge to filter
+    :type merge: mol file
+    :param fragmentA: the fragment A file
+    :type fragmentA: mol file
+    :param fragmentB: the fragment B file
+    :type fragmentB: mol file
+    :param prot: protein file
+    :type prot: pdb file
 
     :return: returns 'pass' or 'fail'
     :rtype: string

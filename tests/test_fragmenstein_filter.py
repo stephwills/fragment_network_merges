@@ -7,7 +7,7 @@ passing_case = 'tests/test_dictionary.json'
 failing_case = 'tests/test_dictionary2.json'
 
 class TestFragmensteinFilter(unittest.TestCase):
-    """Tests the FragmensteinFilter class"""
+    """Tests the fragmenstein filter functions"""
 
     def test_filter(self):
         """Checks that molecules correctly pass and fail the filter"""
