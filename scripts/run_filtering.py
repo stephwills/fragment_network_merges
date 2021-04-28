@@ -20,7 +20,7 @@ parser.add_argument('-a', '--fragment_A', help='fragment A mol file')
 parser.add_argument('-b', '--fragment_B', help='fragment B mol file')
 parser.add_argument('-p', '--protein_A', help='protein pdb file associated with fragment A')
 parser.add_argument('-q', '--protein_B', help='protein pdb file associated with fragment B')
-parser.add_argument('-o', '--output_directory', help='the directory to write the fragmenstein files to')
+parser.add_argument('-o', '--output_directory', help='the directory to write the filtered files to')
 
 # get the arguments
 args = parser.parse_args()
@@ -78,18 +78,13 @@ def process_one_smi(num, smiles, synthon):
                 return None
             else:
                 # place with fragmenstein and run filter
-                place_smiles(name, smiles, fragmentA, fragmentB, proteinA, output_directory)  # these are filenames
-                json_fname = name + '.minimised.json'
-                json_fpath = os.path.join(output_directory, name, json_fname) 
-                json_fpath = json_fpath.replace('_', '-')
+                json_fpath, placed_fpath = place_smiles(name, smiles, fragmentA, fragmentB, proteinA, output_directory)  # these are filenames
                 result = fragmenstein_filter(json_fpath)
                 if result == 'fail':
                     return None
                 else:
                     # run the interaction fp filter
-                    placed_fname = name + '.minimised.mol'
-                    placed_path = os.path.join(output_directory, name, placed_fname)
-                    result = similarity_filter(placed_fname, fragmentA, fragmentB, proteinA)  # these are filenames
+                    result = similarity_filter(placed_fpath, fragmentA, fragmentB, proteinA)  # these are filenames
                     if result == 'fail':
                         return None
                     else:
@@ -103,6 +98,6 @@ def process_one_smi(num, smiles, synthon):
 
 results = Parallel(n_jobs = 4)(delayed(process_one_smi)(n, smi, syn) for n, smi, syn in zip(num, smiles, synthons))
 
-filename = merge_name + '_filtered' + '.json'
+filename = f'{output_directory}/{merge_name}_filtered.json'
 with open(filename, 'w') as f:
     json.dump(results, f)
