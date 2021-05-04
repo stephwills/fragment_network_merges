@@ -4,6 +4,7 @@ import os
 import argparse
 from joblib import Parallel, delayed
 from rdkit import Chem
+from rdkit import RDLogger
 from rdkit.Chem import rdmolfiles
 from scripts.preprocessing import *
 from scripts.descriptor_filter import *
@@ -11,6 +12,8 @@ from scripts.embedding_filter import *
 from scripts.overlap_filter import *
 from scripts.fragmenstein_filter import *
 from scripts.interaction_fp_filter import *
+
+RDLogger.DisableLog('rdApp.*')  # disable rdkit warning that occurs when mols can't be embedded
 
 # get the file containing all the fragment pairs from the command line 
 parser = argparse.ArgumentParser()
@@ -78,17 +81,22 @@ def process_one_smi(num, smiles, synthon):
                 return None
             else:
                 # place with fragmenstein and run filter
-                json_fpath, placed_fpath = place_smiles(name, smiles, fragmentA, fragmentB, proteinA, output_directory)  # these are filenames
-                result = fragmenstein_filter(json_fpath)
-                if result == 'fail':
-                    return None
-                else:
-                    # run the interaction fp filter
-                    result = similarity_filter(placed_fpath, fragmentA, fragmentB, proteinA)  # these are filenames
+                try:
+                    json_fpath, placed_fpath = place_smiles(name, smiles, fragmentA, fragmentB, proteinA, output_directory)  # these are filenames
+                    result = fragmenstein_filter(json_fpath)
                     if result == 'fail':
                         return None
                     else:
                         return smiles
+                except:
+                    return None
+                # else:
+                #     # run the interaction fp filter
+                #     result = similarity_filter(placed_fpath, fragmentA, fragmentB, proteinA)  # these are filenames
+                #     if result == 'fail':
+                #         return None
+                #     else:
+                #         return smiles
 
 # to test
 # results = []
@@ -96,8 +104,9 @@ def process_one_smi(num, smiles, synthon):
 #     res = process_one_smi(n, smi, syn)
 #     results.append(res)
 
-results = Parallel(n_jobs = 4)(delayed(process_one_smi)(n, smi, syn) for n, smi, syn in zip(num, smiles, synthons))
+results = Parallel(n_jobs = 8)(delayed(process_one_smi)(n, smi, syn) for n, smi, syn in zip(num, smiles, synthons))
+filtered_results = [i for i in results if i]  # remove None values from list
 
 filename = f'{output_directory}/{merge_name}_filtered.json'
 with open(filename, 'w') as f:
-    json.dump(results, f)
+    json.dump(filtered_results, f)
