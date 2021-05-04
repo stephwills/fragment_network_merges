@@ -6,8 +6,8 @@ from scripts.interaction_fp_filter import *
 
 # create test cases
 mol = 'tests/x0107-x0678t-0.minimised.mol'
-fragmentA = 'Mpro/aligned/Mpro-x0678_0A/Mpro-x0678_0A.mol'
-fragmentB = 'Mpro/aligned/Mpro-x12696_0A/Mpro-x12696_0A.mol'
+fragmentA = 'Mpro/aligned/Mpro-x0107_0A/Mpro-x0107_0A.mol'
+fragmentB = 'Mpro/aligned/Mpro-x0678_0A/Mpro-x0678_0A.mol'
 protein = 'tests/Mpro-x0107_0A_apo-desolv.pdb'
 
 class TestInteractionFPFilter(unittest.TestCase):

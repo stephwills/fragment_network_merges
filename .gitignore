@@ -149,3 +149,8 @@ scripts/test_fragmenstein.py
 
 scripts/archived/
 notebooks/
+analyse_results.ipynb
+sh_scripts/
+filter_files.text
+merges_filtered.sdf
+analyse_resuts.ipynb
