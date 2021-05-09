@@ -9,6 +9,9 @@ import json
 import numpy as np
 from neo4j import GraphDatabase
 from rdkit import Chem
+from rdkit.Chem import rdShapeHelpers
+from scripts.embedding_filter import *
+from scripts.preprocessing import get_mol
 
 try:
     password
@@ -180,7 +183,39 @@ def filter_synthons(synthon):
     if num_carbons >= 3:
         return synthon
 
-def get_expansions(fragments, names):
+def substructure_check(synthon, fragmentA, fragmentB):
+    """
+    Checks if the synthon is already present in fragment A and in an overlapping position.
+    These synthons result in elaborations of fragment A rather than a merge.
+
+    :param synthon: synthon of interest
+    :type synthon: smiles string
+    :param fragment A: fragment undergoing expansions
+    :type fragment A: RDKit molecule
+
+    :return: synthon smiles or None
+    :rtype: smiles string or None
+    """
+    # add coordinates from the fragments to the synthon structure
+    synthon_A = Chem.MolFromSmiles(synthon)
+    synthon_A = remove_xe(synthon_A)
+    synthon_B = Chem.Mol(synthon_A)
+
+    try:
+        fA_match = add_coordinates(fragmentA, synthon_A)
+        fB_match = add_coordinates(fragmentB, synthon_B)
+
+        distance = rdShapeHelpers.ShapeProtrudeDist(fA_match, fB_match)
+        # if they overlap by more than 20%, then remove
+        if distance <= 0.8:
+            return None
+        else:
+            return synthon
+
+    except:
+        return synthon
+
+def get_expansions(fragments, names, target):
     """
     Function executes the whole process, generating synthons for fragment B and using them to
     generate expansions of fragment A. Returns a dictionary containing all the synthons as keys,
@@ -193,13 +228,19 @@ def get_expansions(fragments, names):
     # get fragment A and B from the tuple
     fragmentA, fragmentB = fragments[0], fragments[1]
     nameA, nameB = names[0], names[1]
+    molA, molB = get_mol(target, nameA), get_mol(target, nameB)
     print(f'Expanding fragment A: {nameA} with synthons of fragment B: {nameB}')
 
     # generate the synthons from fragment B
     unfiltered_synthons = get_synthons(fragmentB)
 
-    # filter synthons
-    synthons = [filter_synthons(syn) for syn in unfiltered_synthons]
+    # filter synthons for those with <3 carbons
+    synthons_3c = [filter_synthons(syn) for syn in unfiltered_synthons]
+    # remove None values from list
+    synthons_3c = list(filter(None, synthons))
+
+    # filter synthons for those already in fragment A
+    synthons = [substructure_check(syn, molA, molB) for syn in synthons_3c]
     # remove None values from list
     synthons = list(filter(None, synthons))
     print(f'{len(synthons)} synthons remaining after filtering')
