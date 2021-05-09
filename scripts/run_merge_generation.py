@@ -24,4 +24,4 @@ frags = ['x0034_0B', 'x0176_0B', 'x0183_0B', 'x0208_0A', 'x0212_0B', 'x0246_0B',
 smiles_pairs, name_pairs = preprocess_fragments(target, frags)
 
 for smiles_pair, name_pair in zip(smiles_pairs, name_pairs):
-    get_expansions(smiles_pair, name_pair)
+    get_expansions(smiles_pair, name_pair, target)
