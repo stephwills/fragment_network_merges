@@ -27,7 +27,7 @@ def place_smiles(name, smiles, fragmentA, fragmentB, protein, output_directory):
     :param output_directory: filepath of output directory
     :type output_directory: filepath string
     """
-    temp_dir = tempfile.TemporaryDirectory(prefix=f'{output_directory}/')  # create temporary directory to write the output files to
+    temp_dir = tempfile.TemporaryDirectory(prefix=f'{output_directory}/tempfiles/')  # create temporary directory to write the output files to
 
     pyrosetta.init(extra_options='-no_optH false -mute all -ex1 -ex2 -ignore_unrecognized_res false -load_PDB_components false -ignore_waters false')  # initialise pyrosetta
     fragments_fnames = [fragmentA, fragmentB]  # filenames of the fragments
@@ -41,24 +41,24 @@ def place_smiles(name, smiles, fragmentA, fragmentB, protein, output_directory):
             long_name=name,  # to name the files
             )
 
-    # get the json file with the info we need from the temp directory and save it to the output folder
-    # this is the only file we need for further filtering
-    name_with_hyphens = name.replace('_', '-')  # fragmenstein saves files with hyphens instead of underscores
-    minimised_json = f'{temp_dir.name}/{name_with_hyphens}/{name_with_hyphens}.minimised.json'  # filepath
-    #minimised_json = minimised_json.replace('_', '-')
-    json_object = get_dict(minimised_json)  # read in the json file
-    new_filepath = f'{output_directory}/fragmenstein/{name_with_hyphens}.minimised.json'
-    with open(new_filepath, 'w') as f:  # write to new file in permanent directory
-        json.dump(json_object, f)
 
-    # also read in the mol file and save it to the output folder (needed for interaction fp)
-    minimised_mol_file = f'{temp_dir.name}/{name_with_hyphens}/{name_with_hyphens}.minimised.mol'  # filepath
-    #minimised_mol_file = minimised_mol_file.replace('_', '-')
-    minimised_mol = rdmolfiles.MolFromMolFile(minimised_mol_file)  # read in the mol file
+    name_with_hyphens = name.replace('_', '-')  # fragmenstein saves files with hyphens instead of underscores
+
+    # get files from tmp folder to permanent folder
+    minimised_json = f'{temp_dir.name}/{name_with_hyphens}/{name_with_hyphens}.minimised.json'
+    new_json_filepath = f'{output_directory}/fragmenstein/{name_with_hyphens}.minimised.json'
+    shutil.move(minimised_json, new_json_filepath)
+
+    minimised_mol = f'{temp_dir.name}/{name_with_hyphens}/{name_with_hyphens}.minimised.mol'
     new_mol_filepath = f'{output_directory}/fragmenstein/{name_with_hyphens}.minimised.mol'
-    rdmolfiles.MolToMolFile(minimised_mol, new_mol_filepath)  # write to new file in permanent directory
+    shutil.move(minimised_mol, new_mol_filepath)
+
+    minimised_pdb = f'{temp_dir.name}/{name_with_hyphens}/{name_with_hyphens}.holo_minimised.pdb'
+    new_pdb_filepath = f'{output_directory}/fragmenstein/{name_with_hyphens}.holo_minimised.pdb'
+    shutil.move(minimised_pdb, new_pdb_filepath)
 
     temp_dir.cleanup()  # remove files from temporary directory
+
     try:
         shutil.rmtree(temp_dir.name)
     except:
