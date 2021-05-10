@@ -3,6 +3,7 @@ Used to generate merges between two fragments using the fragment network.
 Uses code from https://github.com/tdudgeon/fragment-network-merges.
 """
 
+import os
 import itertools
 import getpass
 import json
@@ -215,7 +216,7 @@ def substructure_check(synthon, fragmentA, fragmentB):
     except:
         return synthon
 
-def get_expansions(fragments, names, target):
+def get_expansions(fragments, names, target, output_dir):
     """
     Function executes the whole process, generating synthons for fragment B and using them to
     generate expansions of fragment A. Returns a dictionary containing all the synthons as keys,
@@ -237,7 +238,7 @@ def get_expansions(fragments, names, target):
     # filter synthons for those with <3 carbons
     synthons_3c = [filter_synthons(syn) for syn in unfiltered_synthons]
     # remove None values from list
-    synthons_3c = list(filter(None, synthons))
+    synthons_3c = list(filter(None, synthons_3c))
 
     # filter synthons for those already in fragment A
     synthons = [substructure_check(syn, molA, molB) for syn in synthons_3c]
@@ -263,9 +264,7 @@ def get_expansions(fragments, names, target):
     print(f'{total_expansions} expansions from {expanded_synthons} out of {len(synthons)} synthons')
 
     # save as json file
-    filename = 'data/' + nameA + '_' + nameB + '.json'
-    with open(filename, 'w') as f:
+    filename = nameA + '_' + nameB + '.json'
+    filepath = os.path.join(output_dir, filename)
+    with open(filepath, 'w') as f:
         json.dump(all_expansions, f)
-
-    # return results
-    # return all_expansions
