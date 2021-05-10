@@ -70,33 +70,37 @@ def process_one_smi(num, smiles, synthon):
     if result == 'fail':
         return None
     else:
-        # run the embedding filter
-        embedded, result = embedding_filter(merge_mol, fragmentA_mol, fragmentB_mol, synthon_mol)
+        result = expansion_filter(merge_mol, fragmentA_mol, fragmentB_mol, synthon_mol)
         if result == 'fail':
             return None
         else:
-            # run the overlap filter
-            result = overlap_filter(embedded, proteinA_mol, proteinB_mol)
+            # run the embedding filter
+            embedded, result = embedding_filter(merge_mol, fragmentA_mol, fragmentB_mol, synthon_mol)
             if result == 'fail':
                 return None
             else:
-                # place with fragmenstein and run filter
-                try:
-                    json_fpath, placed_fpath = place_smiles(name, smiles, fragmentA, fragmentB, proteinA, output_directory)  # these are filenames
-                    result = fragmenstein_filter(json_fpath)
-                    if result == 'fail':
-                        return None
-                    else:
-                        return smiles
-                except:
+                # run the overlap filter
+                result = overlap_filter(embedded, proteinA_mol, proteinB_mol)
+                if result == 'fail':
                     return None
-                # else:
-                #     # run the interaction fp filter
-                #     result = similarity_filter(placed_fpath, fragmentA, fragmentB, proteinA)  # these are filenames
-                #     if result == 'fail':
-                #         return None
-                #     else:
-                #         return smiles
+                else:
+                    # place with fragmenstein and run filter
+                    try:
+                        json_fpath, placed_fpath = place_smiles(name, smiles, fragmentA, fragmentB, proteinA, output_directory)  # these are filenames
+                        result = fragmenstein_filter(json_fpath)
+                        if result == 'fail':
+                            return None
+                        else:
+                            return smiles
+                    except:
+                        return None
+                    # else:
+                    #     # run the interaction fp filter
+                    #     result = similarity_filter(placed_fpath, fragmentA, fragmentB, proteinA)  # these are filenames
+                    #     if result == 'fail':
+                    #         return None
+                    #     else:
+                    #         return smiles
 
 # to test
 # results = []
