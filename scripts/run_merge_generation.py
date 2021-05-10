@@ -1,7 +1,12 @@
 """Runs the preprocessing of fragments and merge generation"""
 
+import argparse
 from scripts.find_merges import *
 from scripts.preprocessing import *
+
+target = 'nsp13'
+frags = ['x0034_0B', 'x0176_0B', 'x0183_0B', 'x0208_0A', 'x0212_0B', 'x0246_0B', 'x0276_0B', 'x0283_0B', 'x0311_0B', 'x0438_0B']
+output_dir = 'data/merges2'
 
 def preprocess_fragments(target, fragment_names):
     """
@@ -17,10 +22,10 @@ def preprocess_fragments(target, fragment_names):
     smiles_pairs, name_pairs = check_fragment_pairs(smiles_pairs, name_pairs, target)
     return smiles_pairs, name_pairs
 
-target = 'nsp13'
-frags = ['x0034_0B', 'x0176_0B', 'x0183_0B', 'x0208_0A', 'x0212_0B', 'x0246_0B', 'x0276_0B', 'x0283_0B', 'x0311_0B', 'x0438_0B']
+def run_merge_generation():
+    smiles_pairs, name_pairs = preprocess_fragments(target, frags)
+    for smiles_pair, name_pair in zip(smiles_pairs, name_pairs):
+        get_expansions(smiles_pair, name_pair, target, output_dir)
 
-smiles_pairs, name_pairs = preprocess_fragments(target, frags)
-
-for smiles_pair, name_pair in zip(smiles_pairs, name_pairs):
-    get_expansions(smiles_pair, name_pair, target)
+if __name__ == "__main__":
+    run_merge_generation()
