@@ -1,6 +1,5 @@
 """Runs the preprocessing of fragments and merge generation"""
 
-from joblib import Parallel, delayed
 from scripts.find_merges import *
 from scripts.preprocessing import *
 
