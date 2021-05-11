@@ -12,6 +12,7 @@ from scripts.embedding_filter import *
 from scripts.overlap_filter import *
 from scripts.fragmenstein_filter import *
 from scripts.interaction_fp_filter import *
+from scripts.expansion_filter import *
 
 RDLogger.DisableLog('rdApp.*')  # disable rdkit warning that occurs when mols can't be embedded
 
