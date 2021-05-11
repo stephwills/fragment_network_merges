@@ -64,7 +64,7 @@ def place_smiles(name, smiles, fragmentA, fragmentB, protein, output_directory):
     except:
         pass
 
-    return new_filepath, new_mol_filepath
+    return new_json_filepath, new_mol_filepath
 
 def get_dict(json_file):
     """
