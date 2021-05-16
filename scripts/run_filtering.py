@@ -47,8 +47,6 @@ def process_one_smi(num, smiles, synthon):
     Run all the filters on one smiles. If the smiles fails a filter, the function returns None.
     If it passes all the filters, it returns the smiles.
 
-    :param num: smiles are numbered to create an identifier (for naming output files etc.)
-    :type num: int
     :param smiles: the smiles string of the merge
     :type smiles: string
     :param synthon: the smiles of the synthon used for the expansion
@@ -66,52 +64,56 @@ def process_one_smi(num, smiles, synthon):
     synthon_mol = Chem.MolFromSmiles(synthon)
     proteinA_mol = rdmolfiles.MolFromPDBFile(proteinA)
     proteinB_mol = rdmolfiles.MolFromPDBFile(proteinB)
+
+    reason = None  # stores which filter the smiles fails at (if it fails)
+    final = None  # stores the smiles if molecule is successful (otherwise is None)
+
     # run the descriptor filter
     result = descriptor_filter(smiles)
     if result == 'fail':
-        return None
+        reason = 'descriptor_filter'
     else:
         result = expansion_filter(merge_mol, fragmentA_mol, fragmentB_mol, synthon_mol)
         if result == 'fail':
-            return None
+            reason = 'expansion_filter'
         else:
             # run the embedding filter
             embedded, result = embedding_filter(merge_mol, fragmentA_mol, fragmentB_mol, synthon_mol)
             if result == 'fail':
-                return None
+                reason = 'embedding_filter'
             else:
                 # run the overlap filter
                 result = overlap_filter(embedded, proteinA_mol, proteinB_mol)
                 if result == 'fail':
-                    return None
+                    reason = 'overlap_filter'
                 else:
                     # place with fragmenstein and run filter
                     try:
                         json_fpath, placed_fpath = place_smiles(name, smiles, fragmentA, fragmentB, proteinA, output_directory)  # these are filenames
                         result = fragmenstein_filter(json_fpath)
                         if result == 'fail':
-                            return None
+                            reason = 'fragmenstein_filter'
                         else:
-                            return smiles
+                            final = smiles
                     except:
-                        return None
-                    # else:
-                    #     # run the interaction fp filter
-                    #     result = similarity_filter(placed_fpath, fragmentA, fragmentB, proteinA)  # these are filenames
-                    #     if result == 'fail':
-                    #         return None
-                    #     else:
-                    #         return smiles
-
-# to test
-# results = []
-# for n, smi, syn in zip(num, smiles, synthons):
-#     res = process_one_smi(n, smi, syn)
-#     results.append(res)
+                        reason = 'fragmenstein_filter'
+    
+    return reason, final
 
 results = Parallel(n_jobs = 8)(delayed(process_one_smi)(n, smi, syn) for n, smi, syn in zip(num, smiles, synthons))
-filtered_results = [i for i in results if i]  # remove None values from list
+
+# get the filtered smiles and save to file
+filtered_results = [i[1] for i in results]
+filtered_results = [i for i in filtered_results if i]  # remove None values from list
 
 filename = f'{output_directory}/{merge_name}_filtered.json'
 with open(filename, 'w') as f:
     json.dump(filtered_results, f)
+
+# get the failure reasons and save to file
+failures = [i[0] for i in results]
+filtered_failures = [i for i in failures if i]
+
+failures_filename = f'{output_directory}/{merge_name}_failures.json'
+with open(failures_filename, 'w') as d:
+    json.dump(filtered_failures, d)

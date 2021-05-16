@@ -2,11 +2,26 @@
 
 import pyrosetta
 import json
-import tempfile
+import os
 import shutil
+import tempfile
 from rdkit import Chem
-from rdkit.Chem import rdmolfiles
 from fragmenstein import Victor
+
+def create_directories(output_directory):
+    """
+    Create subdirectories to store the temporary files and fragmenstein results.
+    """
+    if os.path.exists(os.path.join(output_directory, 'tempfiles')) == True:
+        pass
+    else:
+        os.mkdir(os.path.join(output_directory, 'tempfiles')
+
+
+    if os.path.exists(os.path.join(output_directory, 'fragmenstein')) == True:
+        pass
+    else:
+        os.mkdir(os.path.join(output_directory, 'fragmenstein'))
 
 def place_smiles(name, smiles, fragmentA, fragmentB, protein, output_directory):
     """
@@ -27,7 +42,9 @@ def place_smiles(name, smiles, fragmentA, fragmentB, protein, output_directory):
     :param output_directory: filepath of output directory
     :type output_directory: filepath string
     """
-    temp_dir = tempfile.TemporaryDirectory(prefix=f'{output_directory}/tempfiles/')  # create temporary directory to write the output files to
+
+
+    temp_dir = tempfile.TemporaryDirectory(prefix=f'{output_directory}/tempfiles/')  # create temporary subdirectory to write output files to
 
     pyrosetta.init(extra_options='-no_optH false -mute all -ex1 -ex2 -ignore_unrecognized_res false -load_PDB_components false -ignore_waters false')  # initialise pyrosetta
     fragments_fnames = [fragmentA, fragmentB]  # filenames of the fragments
@@ -41,10 +58,9 @@ def place_smiles(name, smiles, fragmentA, fragmentB, protein, output_directory):
             long_name=name,  # to name the files
             )
 
-
     name_with_hyphens = name.replace('_', '-')  # fragmenstein saves files with hyphens instead of underscores
 
-    # get files from tmp folder to permanent folder
+    # move files needed from tmp folder to permanent folder
     minimised_json = f'{temp_dir.name}/{name_with_hyphens}/{name_with_hyphens}.minimised.json'
     new_json_filepath = f'{output_directory}/fragmenstein/{name_with_hyphens}.minimised.json'
     shutil.move(minimised_json, new_json_filepath)
@@ -72,6 +88,8 @@ def get_dict(json_file):
 
     :param json_file: json containing the dictionary
     :type json_file: .json
+    :return: dictionary containing Fragmenstein info
+    :rtype: nested dictionary
     """
     f = open(json_file)
     data = json.load(f)
@@ -110,4 +128,5 @@ def fragmenstein_filter(json_file):
             result = 'fail'  # if deltaG is positive
     else:
         result = 'fail'
+    
     return result

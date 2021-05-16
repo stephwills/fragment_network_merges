@@ -37,7 +37,7 @@ def get_merges(merge_dict):
 
 def get_smiles(target, fragment):
     """
-    Function to get the relevant files for each fragment.
+    Function to get the SMILES for each fragment.
     File paths are like this: TARGET/aligned/TARGET-FRAGMENT_CHAIN
     e.g. Mpro/aligned/Mpro-x0464_0A
 
@@ -57,14 +57,13 @@ def get_smiles(target, fragment):
     smiles_file.close()
     # smiles does not necessarily match what is in the network
     # get canonical smiles by converting to mol and converting back to smiles
-    # check this
     mol = Chem.MolFromSmiles(smiles)
     smiles = Chem.MolToSmiles(mol)
     return smiles
 
 def get_mol(target, fragment):
     """
-    Function to get the relevant files for each fragment.
+    Function to get the mol for each fragment.
     File paths are like this: TARGET/aligned/TARGET-FRAGMENT_CHAIN
     e.g. Mpro/aligned/Mpro-x0464_0A
 
@@ -147,7 +146,7 @@ def get_distance_between_fragments(fragmentA, fragmentB):
             posB = np.array(confB.GetAtomPosition(j))  # get 3D coordinates
             distance = get_distance(posA, posB)  # calculate distance
             distances.append(distance)  # append to list
-    
+
     # get the shortest distance between the fragments
     return min(distances)
 
@@ -176,7 +175,7 @@ def check_fragment_pairs(fragment_pairs, name_pairs, target):
         if distance < 5:
             filtered_fragment_pairs.append(fragment_pair)
             filtered_name_pairs.append(name_pair)
-    
+
     # write fragment pairs list to json file
     filename = os.path.join('data', 'fragment_pairs.json')
     with open(filename, 'w') as f:

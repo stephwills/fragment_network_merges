@@ -6,11 +6,29 @@ from rdkit import Chem
 from rdkit.Chem import AllChem, rdFMCS, rdShapeHelpers
 from scripts.embedding_filter import add_coordinates, remove_xe
 
+def check_for_mcs(mols):
+    """Function checks if there is a MCS between fragment A, B and the merge.
+    Returns the molecule if there is and returns None if not.
+
+    :param mols: list of mols (fragments and merge)
+    :type mols: list of RDKit molecules
+
+    :return: the MCS molecule or None
+    """
+    mcs = rdFMCS.FindMCS(mols, completeRingsOnly=True)
+    mcs_mol = Chem.MolFromSmarts(mcs.smartsString)
+    smi = Chem.MolToSmiles(mcs_mol)
+    if smi == '':
+        return None
+    else:
+        mcs_mol = Chem.MolFromSmiles(Chem.MolToSmiles(mcs_mol))
+        return mcs_mol
+
 def expansion_filter(merge, fragmentA, fragmentB, synthon):
     """
     Function ensures that merges that are just expansions of one fragment are removed.
     Removes part of the merge common to both fragments (by using MCS and checking overlap).
-    Then calculates the proportion of the volume of the merge that comes from fragment A.
+    Then calculates the proportion of the volume of the merge that comes from expanded fragment A.
     If more than 90%, these merges are ruled out.
 
     :param merge: merge molecule (no 3D coordinates)
@@ -25,63 +43,69 @@ def expansion_filter(merge, fragmentA, fragmentB, synthon):
     :return: pass or fail result
     :rtype: string
     """
-    synthon = remove_xe(synthon)  # remove xenon atom from synthon
+    synthon = remove_xe(synthon)  # remove Xe from synthon
 
-    # find common substructure between the fragments
-    mcs = rdFMCS.FindMCS([synthon, fragmentA, fragmentB])
-    mcs_mol = Chem.MolFromSmarts(mcs.smartsString)
+    # in few cases there is > 1 synthon match, just pass the molecule
+    if len(merge.GetSubstructMatches(synthon)) > 1:
+        result = 'pass'
 
-    if len(fragmentA.GetSubstructMatches(mcs_mol)) <= 1:
-        # check the the common substructure is actually overlapping
-        # get the substructure (with coordinates) from fragment A and B by removing everything else
-        substructA = Chem.ReplaceSidechains(fragmentA, mcs_mol)
-        substructB = Chem.ReplaceSidechains(fragmentB, mcs_mol)
-        # check they are overlapping with protrusion distance
-        dist = rdShapeHelpers.ShapeProtrudeDist(substructA, substructB)
+    else:
+        # check if there is a MCS (if not returns none)
+        mols = [merge, fragmentA, fragmentB]
+        mcs_mol = check_for_mcs(mols)
 
-        if dist <= 0.5:  # if overlapping by at least 50%
-            # remove the common part of the merge
-            merge_no_mcs = AllChem.DeleteSubstructs(merge, mcs_mol)
-            # create random conformer (for the computation of mol volume)
-            AllChem.EmbedMolecule(merge_no_mcs)
-            merge_no_mcs_vol = AllChem.ComputeMolVolume(merge_no_mcs)
-
-            # isolate the part of the molecule coming from fragment A
-            # (after removing parts common to both molecules)
+        if mcs_mol == None:
+            # if no MCS, calculate volume and ratio
+            AllChem.EmbedMolecule(merge)
+            merge_vol = AllChem.ComputeMolVolume(merge)
             fA_part = AllChem.DeleteSubstructs(merge, synthon)
-            fA_part = add_coordinates(merge_no_mcs, fA_part)
-            fA_part_vol = AllChem.ComputeMolVolume(fA_part)  # calculate volume
+            fA_part_vol = AllChem.ComputeMolVolume(fA_part)
 
-            # calculate how much fragment A contributes to the total volume
-            ratio = fA_part_vol / merge_no_mcs_vol
-            if ratio >= 0.9:  # if more than 90%, do not use
+            ratio = fA_part_vol / merge_vol
+
+            if ratio >= 0.9:
                 result = 'fail'
             else:
                 result = 'pass'
+
         else:
-            result = 'pass'
-    
-    else:
-        result = 'pass'
-    
-    return result
+            AllChem.EmbedMolecule(merge)  # generate conformation of the merge
 
-def simple_filter(merge, fragmentA, fragmentB, synthon):
-    """
-    Filter to calculate proportion of molecule that came from fragment A.
-    """
-    synthon = remove_xe(synthon)
-    merge_mol = Chem.Mol(merge)
-    AllChem.EmbedMolecule(merge_mol)
-    
-    merge_vol = AllChem.ComputeMolVolume(merge_mol)
-    fA_part = AllChem.DeleteSubstructs(merge_mol, synthon)
-    fA_part_vol = AllChem.ComputeMolVolume(fA_part)
+            # check if there is overlap of the MCS in fragment A and B
+            mcs_A = add_coordinates(fragmentA, mcs_mol)
+            mcs_B = add_coordinates(fragmentB, mcs_mol)
 
-    ratio = fA_part_vol / merge_vol
-    if ratio >= 0.9:
-        result = 'fail'
-    else:
-        result = 'pass'
-    
+            dist = rdShapeHelpers.ShapeProtrudeDist(mcs_A, mcs_B)
+
+            if dist <= 0.5:  # if there is overlap, delete the substructure
+                merge_no_mcs = AllChem.DeleteSubstructs(merge, mcs_mol)
+                merge_vol = AllChem.ComputeMolVolume(merge_no_mcs)
+
+                # check if synthon is still there
+                if len(merge_no_mcs.GetSubstructMatches(synthon)) > 0:
+                    # delete synthon and calculate the ratio
+                    fA_part = AllChem.DeleteSubstructs(merge_no_mcs, synthon)
+                    fA_part_vol = AllChem.ComputeMolVolume(fA_part)
+                    ratio = fA_part_vol / merge_vol
+
+                    if ratio >= 0.9:
+                        result = 'fail'
+                    else:
+                        result = 'pass'
+
+                else:
+                    result = 'fail'
+
+            else:   # if no overlap, calculate ratio of volumes
+                merge_vol = AllChem.ComputeMolVolume(merge)
+                fA_part = AllChem.DeleteSubstructs(merge, synthon)
+                fA_part_vol = AllChem.ComputeMolVolume(fA_part)
+
+                ratio = fA_part_vol / merge_vol
+
+                if ratio >= 0.9:
+                    result = 'fail'
+                else:
+                    result = 'pass'
+
     return result
