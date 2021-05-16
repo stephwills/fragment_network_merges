@@ -2,9 +2,9 @@
 Used to filter out compounds that have a large overlap with the protein.
 """
 
+import numpy as np
 from rdkit import Chem
 from rdkit.Chem import rdShapeHelpers
-import numpy as np
 
 def geometric_mean(distA, distB):
     """

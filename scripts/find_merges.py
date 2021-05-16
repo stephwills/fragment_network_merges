@@ -7,18 +7,13 @@ import os
 import itertools
 import getpass
 import json
-import numpy as np
 from neo4j import GraphDatabase
 from rdkit import Chem
 from rdkit.Chem import rdShapeHelpers
-from scripts.embedding_filter import *
+from scripts.embedding_filter import add_coordinates, remove_xe
 from scripts.preprocessing import get_mol
 
-try:
-    password
-except NameError:
-    password = getpass.getpass()
-
+password = getpass.getpass()
 driver = GraphDatabase.driver("bolt://localhost:7687", auth=("swills", password))
 
 # functions for checking the nodes and filtering for fragments that exist as nodes
@@ -156,7 +151,14 @@ def find_expansions(tx, smiles, synthon):
     :return: expansions
     :rtype: set
     """
+    # query = ("MATCH (fa:F2 {smiles: $smiles})"
+    #             "-[:FRAG*0..2]-(:F2)"
+    #             "<-[e:FRAG]-(c:Mol) WHERE"
+    #             " c.hac > 15 AND"
+    #             " (split(e.label, '|')[1] = $synthon OR split(e.label, '|')[4] = $synthon)"
+    #             " RETURN DISTINCT c")
     query = ("MATCH (fa:F2 {smiles: $smiles})"
+                "-[:FRAG]->(:F2)"
                 "-[:FRAG*0..2]-(:F2)"
                 "<-[e:FRAG]-(c:Mol) WHERE"
                 " c.hac > 15 AND"
@@ -207,11 +209,11 @@ def substructure_check(synthon, fragmentA, fragmentB):
         fB_match = add_coordinates(fragmentB, synthon_B)
 
         distance = rdShapeHelpers.ShapeProtrudeDist(fA_match, fB_match)
-        # if they overlap by more than 20%, then remove
-        if distance <= 0.8:
-            return None
-        else:
+        # if they overlap by more than 50%, then remove
+        if distance >= 0.8:
             return synthon
+        else:
+            return None
 
     except:
         return synthon

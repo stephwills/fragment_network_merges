@@ -1,7 +1,8 @@
 """Tests the embedding filter script"""
 import unittest
+import numpy as np
 from rdkit import Chem
-from scripts.embedding_filter import *
+from scripts.embedding_filter import calc_unconstrained_energy, embedding_filter, get_distance, get_mcs, remove_xe
 
 # some test cases
 passing_mol = Chem.MolFromSmiles('NC(=O)CN1CCC2(C1)CC1(C2)OCCO1')
@@ -10,7 +11,6 @@ synthon = Chem.MolFromSmiles('NC(=O)C[Xe]')
 fragmentA = Chem.MolFromMolFile('tests/Mpro-x0107_0A.mol')
 fragmentB = Chem.MolFromMolFile('tests/Mpro-x0678_0A.mol')
 
-# finish writing unit tests
 class TestEmbeddingFilter(unittest.TestCase):
     """Tests the embedding filter functions"""
 
