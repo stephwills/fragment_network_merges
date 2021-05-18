@@ -157,3 +157,6 @@ analyse_resuts.ipynb
 archived/
 sh_files/
 scripts/run_filtering_noexpfilter.py
+scripts/*sim_search.py
+tests/*sim_search.py
+

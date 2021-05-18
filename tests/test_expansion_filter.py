@@ -47,6 +47,15 @@ class TestExpansionFilter(unittest.TestCase):
         synthon = Chem.MolFromSmiles('CCC(=O)N[Xe]')
         passing_case = expansion_filter(merge, fragmentA, fragmentB, synthon)
         self.assertEqual(passing_case, 'pass')
+    
+    def test_expansion_filter_edge(self):
+        """Test edge case where >1 MCS match"""
+        fragmentA = get_mol('nsp13', 'x0311_0B')
+        fragmentB = get_mol('nsp13', 'x0438_0B')
+        merge = Chem.MolFromSmiles('CCC(=O)Nc1ccccc1Cc1ccccc1')
+        synthon = Chem.MolFromSmiles('CCC(=O)N[Xe]')
+        passing_case = expansion_filter(merge, fragmentA, fragmentB, synthon)
+        self.assertEqual(passing_case, 'pass')
 
 if __name__ == '__main__':
     unittest.main()

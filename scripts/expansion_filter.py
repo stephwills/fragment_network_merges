@@ -78,13 +78,32 @@ def expansion_filter(merge, fragmentA, fragmentB, synthon):
             dist = rdShapeHelpers.ShapeProtrudeDist(mcs_A, mcs_B)
 
             if dist <= 0.5:  # if there is overlap, delete the substructure
-                merge_no_mcs = AllChem.DeleteSubstructs(merge, mcs_mol)
+                merge_no_mcs = Chem.RWMol(merge)
+                mcs_matches = merge.GetSubstructMatches(mcs_mol)
+                for index in sorted(mcs_matches[0], reverse=True):
+                    merge_no_mcs.RemoveAtom(index)
+
                 merge_vol = AllChem.ComputeMolVolume(merge_no_mcs)
 
                 # check if synthon is still there
-                if len(merge_no_mcs.GetSubstructMatches(synthon)) > 0:
+                if len(merge_no_mcs.GetSubstructMatches(synthon)) == 1:
                     # delete synthon and calculate the ratio
                     fA_part = AllChem.DeleteSubstructs(merge_no_mcs, synthon)
+                    fA_part_vol = AllChem.ComputeMolVolume(fA_part)
+                    ratio = fA_part_vol / merge_vol
+
+                    if ratio >= 0.9:
+                        result = 'fail'
+                    else:
+                        result = 'pass'
+
+                elif len(merge_no_mcs.GetSubstructMatches(synthon)) > 1:
+                    # if >1 synthon substructure present, remove just one
+                    fA_part = Chem.RWMol(merge_no_mcs)  # need editable mol
+                    matches = fA_part.GetSubstructMatches(synthon)
+                    for index in sorted(matches[0], reverse=True):
+                        fA_part.RemoveAtom(index)
+                    
                     fA_part_vol = AllChem.ComputeMolVolume(fA_part)
                     ratio = fA_part_vol / merge_vol
 
