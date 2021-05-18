@@ -15,8 +15,7 @@ def create_directories(output_directory):
     if os.path.exists(os.path.join(output_directory, 'tempfiles')) == True:
         pass
     else:
-        os.mkdir(os.path.join(output_directory, 'tempfiles')
-
+        os.mkdir(os.path.join(output_directory, 'tempfiles'))
 
     if os.path.exists(os.path.join(output_directory, 'fragmenstein')) == True:
         pass
