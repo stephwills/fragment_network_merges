@@ -7,14 +7,16 @@ import os
 import itertools
 import getpass
 import json
+
 from neo4j import GraphDatabase
 from rdkit import Chem
 from rdkit.Chem import rdShapeHelpers
-from scripts.embedding_filter import add_coordinates, remove_xe
+
 from scripts.preprocessing import get_mol
+from scripts.embedding_filter import add_coordinates, remove_xe
 
 password = getpass.getpass()
-driver = GraphDatabase.driver("bolt://localhost:7687", auth=("swills", password))
+driver = GraphDatabase.driver("bolt://localhost:7687", auth=("swills", password))  # change to your username
 
 # functions for checking the nodes and filtering for fragments that exist as nodes
 def find_molecule_node(tx, smiles):
@@ -151,15 +153,8 @@ def find_expansions(tx, smiles, synthon):
     :return: expansions
     :rtype: set
     """
-    # query = ("MATCH (fa:F2 {smiles: $smiles})"
-    #             "-[:FRAG*0..2]-(:F2)"
-    #             "<-[e:FRAG]-(c:Mol) WHERE"
-    #             " c.hac > 15 AND"
-    #             " (split(e.label, '|')[1] = $synthon OR split(e.label, '|')[4] = $synthon)"
-    #             " RETURN DISTINCT c")
     query = ("MATCH (fa:F2 {smiles: $smiles})"
-                "-[:FRAG]->(:F2)"
-                "-[:FRAG*0..2]-(:F2)"
+                "-[:FRAG*0..2]-(:F2)"  # to increase the number of hops, change '0..2' to '0..3'
                 "<-[e:FRAG]-(c:Mol) WHERE"
                 " c.hac > 15 AND"
                 " (split(e.label, '|')[1] = $synthon OR split(e.label, '|')[4] = $synthon)"
@@ -210,7 +205,7 @@ def substructure_check(synthon, fragmentA, fragmentB):
 
         distance = rdShapeHelpers.ShapeProtrudeDist(fA_match, fB_match)
         # if they overlap by more than 50%, then remove
-        if distance >= 0.8:
+        if distance >= 0.5:
             return synthon
         else:
             return None
@@ -264,6 +259,7 @@ def get_expansions(fragments, names, target, output_dir):
             if expansions:  # record if the synthon led to expansions
                 expanded_synthons += 1
     print(f'{total_expansions} expansions from {expanded_synthons} out of {len(synthons)} synthons')
+    print('\n')
 
     # save as json file
     filename = nameA + '_' + nameB + '.json'

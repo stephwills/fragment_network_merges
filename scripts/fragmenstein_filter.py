@@ -5,18 +5,35 @@ import json
 import os
 import shutil
 import tempfile
+
 from rdkit import Chem
 from fragmenstein import Victor
+
+def get_dict(json_file):
+    """
+    Function opens the json file to load the dictionary
+
+    :param json_file: json containing the dictionary
+    :type json_file: .json
+    :return: dictionary containing Fragmenstein info
+    :rtype: nested dictionary
+    """
+    f = open(json_file)
+    data = json.load(f)
+    f.close()
+    return data
 
 def create_directories(output_directory):
     """
     Create subdirectories to store the temporary files and fragmenstein results.
     """
+    # create tempfiles folder
     if os.path.exists(os.path.join(output_directory, 'tempfiles')) == True:
         pass
     else:
         os.mkdir(os.path.join(output_directory, 'tempfiles'))
 
+    # create fragmenstein folder to save the important files we want to keep
     if os.path.exists(os.path.join(output_directory, 'fragmenstein')) == True:
         pass
     else:
@@ -41,59 +58,50 @@ def place_smiles(name, smiles, fragmentA, fragmentB, protein, output_directory):
     :param output_directory: filepath of output directory
     :type output_directory: filepath string
     """
+    # create temporary directory to write files to
+    temp_dir = tempfile.TemporaryDirectory(prefix=f'{output_directory}/tempfiles/')
 
+    # run Fragmenstein
+    # initialise PyRosetta
+    pyrosetta.init(extra_options='-no_optH false -mute all -ex1 -ex2 -ignore_unrecognized_res false -load_PDB_components false -ignore_waters false')
 
-    temp_dir = tempfile.TemporaryDirectory(prefix=f'{output_directory}/tempfiles/')  # create temporary subdirectory to write output files to
+    # get the fragments from the files
+    fragments_fnames = [fragmentA, fragmentB]
+    hits = [Chem.MolFromMolFile(frag) for frag in fragments_fnames]
 
-    pyrosetta.init(extra_options='-no_optH false -mute all -ex1 -ex2 -ignore_unrecognized_res false -load_PDB_components false -ignore_waters false')  # initialise pyrosetta
-    fragments_fnames = [fragmentA, fragmentB]  # filenames of the fragments
-    hits = [Chem.MolFromMolFile(frag) for frag in fragments_fnames]  # gets the mols from the filenames
-    Victor.work_path = temp_dir.name  # set the output directory
-    v = Victor(hits=hits,  # list of rdkit molecules (fragments)
-               pdb_filename=protein,  # file name of apo protein
-               covalent_resi= '1A'
-               )
-    v.place(smiles=smiles,
-            long_name=name,  # to name the files
-            )
+    # set the output directory
+    Victor.work_path = temp_dir.name
 
-    name_with_hyphens = name.replace('_', '-')  # fragmenstein saves files with hyphens instead of underscores
+    # set up Victor and place the smiles
+    v = Victor(hits=hits, pdb_filename=protein, covalent_resi= '2B')
+    v.place(smiles=smiles, long_name=name)  # 'long_name' used to name the files
 
-    # move files needed from tmp folder to permanent folder
-    minimised_json = f'{temp_dir.name}/{name_with_hyphens}/{name_with_hyphens}.minimised.json'
-    new_json_filepath = f'{output_directory}/fragmenstein/{name_with_hyphens}.minimised.json'
-    shutil.move(minimised_json, new_json_filepath)
+    # only keep the files needed for filtering (move to fragmenstein folder)
+    # fragmenstein saves files with hyphens instead of underscores
+    name_ = name.replace('_', '-')
 
-    minimised_mol = f'{temp_dir.name}/{name_with_hyphens}/{name_with_hyphens}.minimised.mol'
-    new_mol_filepath = f'{output_directory}/fragmenstein/{name_with_hyphens}.minimised.mol'
-    shutil.move(minimised_mol, new_mol_filepath)
+    # move the json file
+    json_file = name_ + '.minimised.json'
+    json = os.path.join(temp_dir.name, name_, json_file)
+    json_new = os.path.join(output_directory, 'fragmenstein', json_file)
+    shutil.move(json, json_new)
 
-    minimised_pdb = f'{temp_dir.name}/{name_with_hyphens}/{name_with_hyphens}.holo_minimised.pdb'
-    new_pdb_filepath = f'{output_directory}/fragmenstein/{name_with_hyphens}.holo_minimised.pdb'
-    shutil.move(minimised_pdb, new_pdb_filepath)
+    # move the mol file
+    mol_file = name_ + '.minimised.mol'
+    mol = os.path.join(temp_dir.name, name_, mol_file)
+    mol_new = os.path.join(output_directory, 'fragmenstein', mol_file)
+    shutil.move(mol, mol_new)
 
-    temp_dir.cleanup()  # remove files from temporary directory
+    # move the pdb file
+    pdb_file = name_ + '.holo_minimised.pdb'
+    pdb = os.path.join(temp_dir.name, name_, pdb_file)
+    pdb_new = os.path.join(output_directory, 'fragmenstein', pdb_file)
+    shutil.move(pdb, pdb_new)
 
-    try:
-        shutil.rmtree(temp_dir.name)
-    except:
-        pass
+    # remove files from temporary directory
+    temp_dir.cleanup()
 
-    return new_json_filepath, new_mol_filepath
-
-def get_dict(json_file):
-    """
-    Function opens the json file to load the dictionary
-
-    :param json_file: json containing the dictionary
-    :type json_file: .json
-    :return: dictionary containing Fragmenstein info
-    :rtype: nested dictionary
-    """
-    f = open(json_file)
-    data = json.load(f)
-    f.close()
-    return data
+    return json_new, mol_new, pdb_new
 
 def fragmenstein_filter(json_file):
     """
@@ -106,17 +114,21 @@ def fragmenstein_filter(json_file):
     :return: returns 'pass' or 'fail'
     :rtype: string
     """
-    data = get_dict(json_file) # load the dictionary from the json
+    data = get_dict(json_file) # load the dictionary from the json file
+
     # retrieve the energy of the bound and unbound molecules and the comRMSD
     G_bound = data['Energy']['ligand_ref2015']['total_score']  # energy of bound molecule
     G_unbound = data['Energy']['unbound_ref2015']['total_score']  # energy of unbound molecule
+    deltaG = G_bound - G_unbound  # calculate energy difference
     comRMSD = data['mRMSD']  # RMSD between two fragments and merge
+
+    # get number of fragments used for placement of SMILES
     regarded = 0
-    # get number of molecules regarded during placement
     for rmsd in data['RMSDs']:
             if rmsd != None:
                 regarded += 1
-    deltaG = G_bound - G_unbound  # calculate energy difference
+
+    # only keep molecules where both fragments used in placement
     if regarded == 2:
         if deltaG < 0:  # keep molecules with negative ΔΔG
             if comRMSD <= 1:
@@ -124,8 +136,8 @@ def fragmenstein_filter(json_file):
             else:
                 result = 'fail'
         else:
-            result = 'fail'  # if deltaG is positive
+            result = 'fail'  # remove molecule with positive ΔΔG
     else:
         result = 'fail'
-    
+
     return result
