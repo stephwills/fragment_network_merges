@@ -3,6 +3,7 @@ Used to filter out compounds that have a large overlap with the protein.
 """
 
 import numpy as np
+
 from rdkit import Chem
 from rdkit.Chem import rdShapeHelpers
 
@@ -57,7 +58,7 @@ def overlap_filter(merge, proteinA, proteinB):
     """
     distanceA, distanceB = calc_distances(merge, proteinA, proteinB)  # calculate distances
     mean = geometric_mean(distanceA, distanceB)  # calculate mean of distances
-    if mean >= 0.9:  # if protrusion > 90% (overlap < 10%)
+    if mean >= 0.85:  # if protrusion > 85% (overlap < 15%)
         result = 'pass'
     else:
         result = 'fail'

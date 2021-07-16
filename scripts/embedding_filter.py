@@ -3,8 +3,12 @@ Used for 3D filtering of fragment merges by constrained embedding.
 """
 
 import numpy as np
+
 from rdkit import Chem
+from rdkit import RDLogger
 from rdkit.Chem import AllChem, rdFMCS, rdForceFieldHelpers
+
+RDLogger.DisableLog('rdApp.*')
 
 def get_mcs(full_mol, fragment):
     """
@@ -28,7 +32,7 @@ def add_coordinates(fragment, substructure):
     atoms from the original fragment.
     The resulting molecule will be used for constrained embedding.
 
-    :param fragment: the original fragment with 3D coordinates
+    :param fragment: the original fragment (with 3D coordinates)
     :type fragment: RDKit molecule
     :param substructure: substructure to add coordinates to
     :type substructure: RDKit molecule
@@ -134,8 +138,10 @@ def embedding(fragA, fragB, full_mol, synth):
     rwmolB = add_coordinates(fragB, synthB)
     newmolA, newmolB = check_overlap(rwmolA, rwmolB)  # check if atoms overlap
     combined_mol = Chem.CombineMols(newmolA, newmolB)  # combine mols to get reference molecule
+    #full_mol = Chem.AddHs(full_mol)
     embedded = AllChem.ConstrainedEmbed(Chem.Mol(full_mol), combined_mol, 42)  # do embedding
     rdForceFieldHelpers.MMFFOptimizeMolecule(embedded)  # optimize the embedding
+    #embedded = Chem.RemoveHs(embedded)
     return embedded
 
 def calc_energy(mol):
