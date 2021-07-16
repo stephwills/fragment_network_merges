@@ -77,7 +77,6 @@ def process_one_smi(merge_name, fragmentA, fragmentB, proteinA, proteinB, output
         return failed_name, failed_smiles, failed_filter, passing_name, passing_smiles, if_score
 
     try:
-        create_directories(output_directory)  # create folder to save Fragmenstein files
         json_fpath, mol_fpath, pdb_fpath = place_smiles(name, smiles, fragmentA, fragmentB, proteinA, output_directory)
         result = fragmenstein_filter(json_fpath)
         if result == 'fail':
@@ -128,8 +127,11 @@ def main():
     output_directory = args.output_directory
     merge_name = args.merge
 
+    # create folder to save Fragmenstein files
+    create_directories(output_directory)
+
     # filter all smiles for the pair
-    results = Parallel(n_jobs = 1)(delayed(process_one_smi)
+    results = Parallel(n_jobs = -1)(delayed(process_one_smi)
               (merge_name, fragmentA, fragmentB, proteinA, proteinB, output_directory, n, smi, syn)
               for n, smi, syn in zip(num, smiles, synthons))
 
