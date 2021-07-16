@@ -43,7 +43,24 @@ Querying the database requires access to the Fragment Network with Kubernetes. P
 
 The `preprocessing.py` script requires the data folder containing all the crystal structures (e.g. nsp13, Mpro) to be saved in the fragment_network_merges root directory (this was done to make it easier to access the mol files of the parent fragments). 
 
-To run the query, `run_database_query.py` can be run from the command line, specifying the target, the list of fragments to be merged and the directory to save the files. For example, to find all possible merges of fragments 34, 176 and 212, which are hits against nsp13, run the following: 
+To run the query, `run_database_query.py` can be run from the command line, specifying the target, the list of fragments to be merged and the directory to save the files. The options are shown below:
+
+```
+usage: run_database_query.py [-h] [-t TARGET] [-f FRAGMENTS [FRAGMENTS ...]]
+                             [-o OUTPUT_DIRECTORY]
+
+optional arguments:
+  -h, --help            show this help message and exit
+  -t TARGET, --target TARGET
+                        the protein target (e.g. nsp13)
+  -f FRAGMENTS [FRAGMENTS ...], --fragments FRAGMENTS [FRAGMENTS ...]
+                        the list of fragments to merge
+  -o OUTPUT_DIRECTORY, --output_directory OUTPUT_DIRECTORY
+                        the directory to write the merge files to
+```
+
+**Example**
+For example, to find all possible merges of fragments 34, 176 and 212, which are hits against nsp13, run the following: 
 
 ```
 python scripts/run_database_query.py -t nsp13 -f x0034_0B x0176_0B x0212_0B -o data/example_folder
@@ -54,9 +71,33 @@ N.B. Connecting to the database in this way is not always very stable, so I typi
 
 ### Filtering the merges
 
-To filter the merges, `filtering.py` is run for each merge pair (i.e. each json file created according to the above). For example, to filter all of the merges of fragments 34 and 212, use the following:
+To filter the merges, `filtering.py` is run for each merge pair (i.e. each json file created according to the above). The options are shown below:
 
+```
+usage: filtering.py [-h] [-f MERGE_FILE] [-m MERGE] [-a FRAGMENT_A]
+                    [-b FRAGMENT_B] [-p PROTEIN_A] [-q PROTEIN_B]
+                    [-o OUTPUT_DIRECTORY]
 
+optional arguments:
+  -h, --help            show this help message and exit
+  -f MERGE_FILE, --merge_file MERGE_FILE
+                        the json file containing the merges
+  -m MERGE, --merge MERGE
+                        the name of the merge, e.g. x0107_0A_x0434_0A
+  -a FRAGMENT_A, --fragment_A FRAGMENT_A
+                        fragment A mol file
+  -b FRAGMENT_B, --fragment_B FRAGMENT_B
+                        fragment B mol file
+  -p PROTEIN_A, --protein_A PROTEIN_A
+                        protein pdb file associated with fragment A
+  -q PROTEIN_B, --protein_B PROTEIN_B
+                        protein pdb file associated with fragment B
+  -o OUTPUT_DIRECTORY, --output_directory OUTPUT_DIRECTORY
+                        the directory to write the filtered files to
+```
+
+**Example**
+For example, to filter all of the merges of fragments 34 and 212, use the following:
 
 ```
 python scripts/filtering.py -f data/example_folder/x0034_0B_x0212_0B.json -m x0034_0B_x0212_0B -a nsp13/aligned/nsp13-x0034_0B/nsp13-x0034_0B.mol -b nsp13/aligned/nsp13-x0212_0B/nsp13-x0212_0B.mol -p nsp13/aligned/nsp13-x0034_0B/nsp13-x0034_0B_apo-desolv.pdb -q nsp13/aligned/nsp13-x0212_0B/nsp13-x0212_0B_apo-desolv.pdb -o data/results_folder
