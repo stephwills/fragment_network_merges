@@ -15,8 +15,9 @@ from rdkit.Chem import rdShapeHelpers
 from scripts.preprocessing import get_mol
 from scripts.embedding_filter import add_coordinates, remove_xe
 
-password = getpass.getpass()
-driver = GraphDatabase.driver("bolt://localhost:7687", auth=("swills", password))  # change to your username
+#password = getpass.getpass() #password for fragments ruben
+password = "fragments_ruben"
+driver = GraphDatabase.driver("bolt://localhost:7687", auth=("rgarcia", password))  # change to your username
 
 # functions for checking the nodes and filtering for fragments that exist as nodes
 def find_molecule_node(tx, smiles):
@@ -263,6 +264,8 @@ def get_expansions(fragments, names, target, output_dir):
 
     # save as json file
     filename = nameA + '_' + nameB + '.json'
+    if not os.path.exists(output_dir):
+        os.mkdir(output_dir)
     filepath = os.path.join(output_dir, filename)
     with open(filepath, 'w') as f:
         json.dump(all_expansions, f)
