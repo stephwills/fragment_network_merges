@@ -24,9 +24,9 @@ def preprocess_fragments(target, fragment_names):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('-t', '--target', help='the protein target (e.g. nsp13)')
-    parser.add_argument('-f', '--fragments', nargs='+', help='the list of fragments to merge')
-    parser.add_argument('-o', '--output_directory', help='the directory to write the merge files to')
+    parser.add_argument('-t', '--target', help='the protein target (e.g. nsp13)', required=True)
+    parser.add_argument('-f', '--fragments', nargs='+', help='the list of fragments to merge', required=True)
+    parser.add_argument('-o', '--output_directory', help='the directory to write the merge files to', required=True)
     args = parser.parse_args()
 
     # get all fragment pairs and check they exist in the network
