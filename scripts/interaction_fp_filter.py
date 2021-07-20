@@ -4,8 +4,9 @@ made by the original fragments they were merged from.
 """
 
 from oddt import toolkit, fingerprints
-
-# check fp calculation; change to Tversky similarity?
+from Bio.PDB.PDBParser import PDBParser
+from Bio.PDB.PDBIO import PDBIO
+from Bio.PDB import Select
     
 def get_protein(protein):
     """
@@ -43,16 +44,75 @@ def make_fp(protein, mol):
     :type mol: ODDT mol
 
     :return: fingerprint
-    :rtype: list
+    :rtype: numpy array
     """
     fp = fingerprints.InteractionFingerprint(mol, protein)
     return fp
 
-def similarity_filter(merge, fragmentA, fragmentB, prot):
+class ResSelect(Select):
     """
-    Function compares the interaction fingerprints between the fragment and the protein,
-    and the merge and the protein. Calculates similarity (using dice). Keeps molecules
-    with similarity coefficient of greater than 0.6.
+    Class to remove ligand 'residue' from pdb structure.
+    """
+    def accept_residue(self, residue):
+        if residue.id[0]=="H_LIG":
+            return False
+        else:
+            return True
+
+def remove_ligand(pdb_file):
+    """
+    Function uses BioPython to read in pdb structure, remove the ligand
+    and save to a new file in the same directory.
+    """
+    parser = PDBParser(PERMISSIVE=1)
+    structure = parser.get_structure("pdb", pdb_file)
+
+    new_filename = pdb_file.replace('.pdb', '_nolig.pdb')
+
+    io = PDBIO()
+    io.set_structure(structure)
+
+    for model in structure:
+        for chain in model:
+            for residue in chain:
+                io.save(new_filename, ResSelect())
+
+    return new_filename
+
+def calc_bond_percentage(fragment_fp, merge_fp):
+    """
+    Alternative to Tversky (which requires the fp to be binary).
+    Calculate the percentage of the bonds made by the fragment that are preserved by 
+    the merge. Only checks bits in which the fragment makes an interaction but still 
+    accounts for the fact that this is a count vector.
+
+    :param fragment_fp: interaction fingerprint of fragment
+    :type fp: numpy array
+    :param fp: interaction fingerprint of merge
+    :type fp: numpy array
+
+    :return: proportion of interactions maintained by the merge
+    :rtype: float
+    """
+    frag_count = 0
+    merge_count = 0
+
+    for i, j in zip(fragment_fp, merge_fp):
+        if i > 0:  # only check bits in which the fragment makes an interaction
+            frag_count += i
+            if i >= j:
+                merge_count += j
+            else:
+                merge_count += i  # avoid percentage >100%
+    
+    perc = merge_count / frag_count
+
+    return perc
+
+def ifp_score(merge, fragmentA, fragmentB, prot):
+    """
+    Function to calculate the percentage bonds preserved between the merge and the fragment
+    fingerprints.
 
     :param merge: the file of the merge to filter
     :type merge: mol file
@@ -63,8 +123,8 @@ def similarity_filter(merge, fragmentA, fragmentB, prot):
     :param prot: protein file
     :type prot: pdb file
 
-    :return: returns 'pass' or 'fail'
-    :rtype: string
+    :return: average percentage preserved
+    :rtype: float
     """
     # load the molecules
     protein = get_protein(prot)
@@ -73,13 +133,9 @@ def similarity_filter(merge, fragmentA, fragmentB, prot):
     fB_mol = get_mol(fragmentB)
     # create all the fingerprints
     merge_fp, fA_fp, fB_fp = make_fp(protein, merge_mol), make_fp(protein, fA_mol), make_fp(protein, fB_mol)
-    # calculate the dice coefficient between the fp for the merge and the two fragments
-    score1 = fingerprints.dice(merge_fp, fA_fp)
-    score2 = fingerprints.dice(merge_fp, fB_fp)
-    # calculate the average between the two scores
-    mean = (score1 + score2) / 2
-    if mean >= 0.6:  # keep molecules with similarity > 0.6
-        result = 'pass'
-    else:
-        result = 'fail'
-    return result
+
+    perc_A = calc_bond_percentage(fA_fp, merge_fp)
+    perc_B = calc_bond_percentage(fB_fp, merge_fp)
+    mean = (perc_A + perc_B) / 2
+
+    return mean

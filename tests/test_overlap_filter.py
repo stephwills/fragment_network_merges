@@ -3,7 +3,7 @@ import unittest
 import numpy as np
 from rdkit import Chem
 from rdkit.Chem import rdmolfiles
-from scripts.overlap_filter import *
+from scripts.overlap_filter import calc_distances, geometric_mean, overlap_filter
 
 # some test cases
 suppl = Chem.SDMolSupplier('tests/test_embedded_mols.sdf')

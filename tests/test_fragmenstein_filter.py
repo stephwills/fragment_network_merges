@@ -1,7 +1,7 @@
 """Tests the Fragmenstein filter script"""
 import unittest
 from rdkit import Chem
-from scripts.fragmenstein_filter import *
+from scripts.fragmenstein_filter import place_smiles, fragmenstein_filter, create_directories
 
 passing_case = 'tests/test_dictionary.json'
 failing_case = 'tests/test_dictionary2.json'
