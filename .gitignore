@@ -136,16 +136,13 @@ Mpro/
 nsp13/
 
 # other
-run_merge_generation.ipynb
-scripts/test_fragmenstein.py
 .vscode
-
+tests/
 scripts/archive/
 scripts/alternative/
 notebooks/
 archived/
 SuCOS/
-tests/
 run_merge_generation.ipynb
 investigate_queries.ipynb
 
