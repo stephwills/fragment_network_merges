@@ -2,14 +2,14 @@
 
 ## Motivation
 
-Fragments can be optimized to become lead-like compounds by fragment merging, whereby fragments that bind to a target in adjoining or partially overlapping space are merged by finding compounds that incorporate structural motifs from each. The Fragment Network is a graph database containing catalogue compounds. Given there are two fragment hits that exist as nodes in the network, the database can be queried to find catalogue compounds that represent merges of the two.
+Fragments can be optimized to become lead-like compounds by fragment merging, whereby fragments that bind to a target in adjoining or partially overlapping space are merged by finding compounds that incorporate structural motifs from each. The Fragment Network is a graph database containing catalogue compounds. Given there are two fragment hits that exist as nodes in the network, the database can be queried to find purchasable compounds that represent merges.
 
 ## Pipeline
 
 fragment_network_merges provides a pipeline for querying the Fragment Network to find fragment merges and filtering the results to find the most promising compounds.
 
 ### Finding merges
-The technique for finding merges is called ‘synthon expansion’, with ‘synthon’ being used here to denote a constituent part of a fragment. If we have two fragments, fragment A and B, this method attempts to find all expansions of fragment A that contain part of fragment B. A series of optional hops can be made before the expansion, in which fragment A gains or loses synthons, to increase diversity in the compounds found. The Fragment Network can be loaded using Neo4j, and the merges are found by querying the database using cypher. 
+The technique for finding merges is called ‘synthon expansion’, with ‘synthon’ being used here to denote a constituent part of a fragment. If we have two fragments, fragments A and B, this method attempts to find all expansions of fragment A that contain part of fragment B. A series of optional hops can be made before the expansion, in which fragment A gains or loses synthons, to increase diversity in the compounds found. The Fragment Network can be loaded using Neo4j, and the merges are found by querying the database using the cypher query language. 
 
 ### Filtering merges
 The merges require filtering to find those in which the binding mode and interactions made by the original fragments are most likely to be conserved. The filtering steps implemented here are as follows:
@@ -28,12 +28,12 @@ To be updated
 
 ### Prerequisites
 
-* RDKit
-* Numpy
-* ODDT
-* Fragmenstein (+ PyRosetta)
-* neo4j Python driver
-* Biopython 
+* rdkit
+* numpy
+* oddt
+* neo4j
+* biopython 
+* Fragmenstein (and PyRosetta)
 
 ## Usage
 
@@ -104,9 +104,7 @@ python scripts/filtering.py -f data/example_folder/x0034_0B_x0212_0B.json -m x00
 ```
 Within the results directory a sub-directory called is created tempfiles, where all the Fragmenstein files are temporarily written to, and a Fragmenstein folder, to which the required Fragmenstein files (including the minimized mol and pdb files and the json containing the results needed for filtering) are saved. 
 
-Running the filtering script creates two json files, a `MERGE_filtered.json` and a `MERGE_failures.json`. The former contains a dictionary containing the successfully filtered compounds, their unique name (which is used to name the Fragmenstein files), SMILES and PLIF score. The other file contains the SMILES that did not pass the filters, their unique name and which filter they failed at. 
-
-**This script recently underwent some refactoring and needs to be tested**
+Running the filtering script creates two json files, a `MERGE_filtered.json` and a `MERGE_failures.json`. The former contains a dictionary containing the successfully filtered compounds, their unique name (which is used to name the Fragmenstein files), SMILES and PLIF score. The latter file contains the SMILES that did not pass the filters, their unique name and which filter they failed at. 
 
 ## Tests
 
