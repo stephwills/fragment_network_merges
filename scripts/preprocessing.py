@@ -5,7 +5,7 @@ import json
 import numpy as np
 from rdkit import Chem
 from rdkit.Chem import rdmolfiles
-from scripts.config import Config
+from scripts.config import config
 
 def open_json(fname): #open or load?
     """
@@ -36,6 +36,7 @@ def get_merges(merge_dict):
                 smiles.append(smi)
     return synthons, smiles
 
+
 def get_smiles(target, fragment):
     """
     Function to get the SMILES for each fragment.
@@ -51,7 +52,7 @@ def get_smiles(target, fragment):
     :rtype: string
     """
     fname_part = f'{target}-{fragment}'  # the first part of the filenames/folder names
-    path = os.path.join(Config.get("FRAGALYSIS_DATA_DIR"), target, 'aligned', fname_part)
+    path = os.path.join(config.FRAGALYSIS_DATA_DIR, target, 'aligned', fname_part)
     smiles_path = os.path.join(path, f'{fname_part}_smiles.txt')
     with open(smiles_path) as smiles_file: # open the file to get smiles
         smiles = smiles_file.read()
@@ -77,7 +78,7 @@ def get_mol(target, fragment):
     :rtype: string
     """
     fname_part = f'{target}-{fragment}'  # the first part of the filenames/folder names
-    path = os.path.join(Config.get("FRAGALYSIS_DATA_DIR"), target, 'aligned', fname_part)
+    path = os.path.join(config.FRAGALYSIS_DATA_DIR, target, 'aligned', fname_part)
     mol_file = os.path.join(path, f'{fname_part}.mol')
     mol = rdmolfiles.MolFromMolFile(mol_file)
     return mol
@@ -97,7 +98,7 @@ def get_files(target, fragment):
     :rtype: filepaths (strings)
     """
     fname_part = f'{target}-{fragment}'  # the first part of the filenames/folder names
-    path = os.path.join(Config.get("FRAGALYSIS_DATA_DIR"), target, 'aligned', fname_part)
+    path = os.path.join(config.FRAGALYSIS_DATA_DIR, target, 'aligned', fname_part)
     mol_file = os.path.join(path, f'{fname_part}.mol')
     protein_file = os.path.join(path, f'{fname_part}_apo-desolv.pdb')
     return mol_file, protein_file
@@ -178,7 +179,7 @@ def check_fragment_pairs(fragment_pairs, name_pairs, target):
             filtered_name_pairs.append(name_pair)
 
     # write fragment pairs list to json file
-    wdirname = Config.get("WORKING_DIR")
+    wdirname = config.WORKING_DIR
     if not os.path.exists(wdirname):
         os.mkdir(wdirname)
     filename = os.path.join(wdirname, 'fragment_pairs.json') #THIS SHOLD NOT BE HARD-CODED and it should check if exists
