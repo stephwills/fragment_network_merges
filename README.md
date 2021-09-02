@@ -39,9 +39,16 @@ To be updated
 
 ### Querying the database
 
-Querying the database requires access to the Fragment Network with Kubernetes. Prior to running `run_database_query,.py` you need to access the network using port forwarding and to change the username in `find_merges.py` to your own username.
+Querying the database requires access to the Fragment Network with Kubernetes. Prior to running `run_database_query.py` you need to access the network-db using port forwarding and to change the username in `config.py` to your own username.
+At this moment port forwarding can be executed as follows:
 
-The `preprocessing.py` script requires the data folder containing all the crystal structures (e.g. nsp13, Mpro) to be saved in the fragment_network_merges root directory (this was done to make it easier to access the mol files of the parent fragments). 
+```
+export KUBECONFIG=$HOME/.kube/_fragment_network_config
+kubectl port-forward pods/graph-0 7474:7474  &
+kubectl port-forward pods/graph-0 7687:7687 &
+```
+
+The program (within `preprocessing.py`) requires the data folder containing all the crystal structures (e.g. nsp13, Mpro) to be saved in the fragment_network_merges root directory (this was done to make it easier to access the mol files of the parent fragments). In order to define the directory pointing to the data, set FRAGALYSIS_DATA_DIR in `config.py`. 
 
 To run the query, `run_database_query.py` can be run from the command line, specifying the target, the list of fragments to be merged and the directory to save the files. The options are shown below:
 
@@ -63,7 +70,7 @@ optional arguments:
 For example, to find all possible merges of fragments 34, 176 and 212, which are hits against nsp13, run the following: 
 
 ```
-python scripts/run_database_query.py -t nsp13 -f x0034_0B x0176_0B x0212_0B -o data/example_folder
+python -m scripts.run_database_query -t nsp13 -f x0034_0B x0176_0B x0212_0B -o data/example_folder
 ```
 This will prompt you for your password to access the database. This will enumerate all possible pairs of fragments and for each pair, will query the database to find the synthons of fragment B, and then find expansions of fragment A using each synthon. For each pair, a json file is created in the specified output directory, named according to the merge, e.g. `x0034_0B_x0176_0B.json` will include all merges found involving expansions of fragment 34 using synthons of fragment 176. These are saved in a dictionary, with the dictionary keys indicating the synthon used in the expansion, and the values representing the list of merges found (in SMILES format).
 
@@ -100,7 +107,7 @@ optional arguments:
 For example, to filter all of the merges of fragments 34 and 212, use the following:
 
 ```
-python scripts/filtering.py -f data/example_folder/x0034_0B_x0212_0B.json -m x0034_0B_x0212_0B -a nsp13/aligned/nsp13-x0034_0B/nsp13-x0034_0B.mol -b nsp13/aligned/nsp13-x0212_0B/nsp13-x0212_0B.mol -p nsp13/aligned/nsp13-x0034_0B/nsp13-x0034_0B_apo-desolv.pdb -q nsp13/aligned/nsp13-x0212_0B/nsp13-x0212_0B_apo-desolv.pdb -o data/results_folder
+python -m scripts.filtering -f data/example_folder/x0034_0B_x0212_0B.json -m x0034_0B_x0212_0B -a nsp13/aligned/nsp13-x0034_0B/nsp13-x0034_0B.mol -b nsp13/aligned/nsp13-x0212_0B/nsp13-x0212_0B.mol -p nsp13/aligned/nsp13-x0034_0B/nsp13-x0034_0B_apo-desolv.pdb -q nsp13/aligned/nsp13-x0212_0B/nsp13-x0212_0B_apo-desolv.pdb -o data/results_folder
 ```
 Within the results directory a sub-directory called is created tempfiles, where all the Fragmenstein files are temporarily written to, and a Fragmenstein folder, to which the required Fragmenstein files (including the minimized mol and pdb files and the json containing the results needed for filtering) are saved. 
 

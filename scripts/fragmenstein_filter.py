@@ -18,9 +18,8 @@ def get_dict(json_file):
     :return: dictionary containing Fragmenstein info
     :rtype: nested dictionary
     """
-    f = open(json_file)
-    data = json.load(f)
-    f.close()
+    with open(json_file) as f:
+        data = json.load(f)
     return data
 
 def create_directories(output_directory):
@@ -31,6 +30,8 @@ def create_directories(output_directory):
     if os.path.exists(os.path.join(output_directory, 'tempfiles')) == True:
         pass
     else:
+        if not os.path.exists(output_directory):
+            os.mkdir(output_directory)
         os.mkdir(os.path.join(output_directory, 'tempfiles'))
 
     # create fragmenstein folder to save the important files we want to keep
@@ -59,7 +60,7 @@ def place_smiles(name, smiles, fragmentA, fragmentB, protein, output_directory):
     :type output_directory: filepath string
     """
     # create temporary directory to write files to
-    temp_dir = tempfile.TemporaryDirectory(prefix=f'{output_directory}/tempfiles/')
+    temp_dir = tempfile.TemporaryDirectory(dir=f'{output_directory}/tempfiles/')
 
     # run Fragmenstein
     # initialise PyRosetta
