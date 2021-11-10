@@ -12,11 +12,11 @@ from datetime import datetime, MINYEAR
 import requests
 
 from scripts.config import config
-from scripts.find_merges_generic import MergerFinder_generic, add_required_synthons
+from scripts.find_merges_generic import MergerFinder_generic, add_required_synthons, SearchSession_generic
 from scripts.utils import Singleton
 
-class RestAPI_wrapper(metaclass=Singleton):
-
+class RestAPI_wrapper(SearchSession_generic):
+    __metaclass__ = Singleton
     FRAGNET_SERVER = "https://fragnet-search.xchem-dev.diamond.ac.uk/fragnet-search-api/fragnet-search/rest/v2/search/"
     TOKEN_SERVER = "https://squonk.it/auth/realms/squonk/protocol/openid-connect/token"
 

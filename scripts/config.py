@@ -9,13 +9,15 @@ class Config(metaclass=Singleton):
         WORKING_DIR = os.path.join(os.getcwd(), "data"), # I would prefer this as part of the argparse, but it is better than nothing
         N_CPUS_FILTER_PAIR=2,
         USE_NEO4J_INSTEAD_API=True,
+        # ONLY FOR USE_NEO4J_INSTEAD_API=True
         NEO4J_URI="bolt://localhost:7687",
         NEO4J_USER ="rgarcia",
         NEO4J_PASS=None, #This should never be plain text. Better exporting to bash before execution. export NEO4J_PASS="myPass",
+        #ONLY FOR USE_NEO4J_INSTEAD_API=False
         RESTAPI_USER = "rgarcia",
         RESTAPI_PASS = None, #This should never be plain text. Better exporting to bash before execution. export NEO4J_PASS="myPass"
     )
-    
+
     @classmethod
     def get(cls, key):
         val = os.environ.get(key, None)
