@@ -8,6 +8,7 @@ import itertools
 import getpass
 import json
 from abc import ABC, abstractmethod
+from typing import List
 
 from rdkit import Chem
 from rdkit.Chem import rdShapeHelpers
@@ -15,13 +16,25 @@ from rdkit.Chem import rdShapeHelpers
 from scripts.preprocessing import get_mol
 from scripts.embedding_filter import add_coordinates, remove_xe
 
+class SearchSession_generic(ABC):
+
+    @abstractmethod
+    def find_synthons(self, smiles:str) -> List[str]:
+        raise NotImplementedError()
+
+    @abstractmethod
+    def find_molecule_node(self, fragment):
+        raise NotImplementedError()
+
+    @abstractmethod
+    def find_expansions( self, fragmentA, synthon):
+        raise NotImplementedError()
 
 
 class MergerFinder_generic(ABC):
 
-
     @abstractmethod
-    def getSearchSession(self):
+    def getSearchSession(self) -> SearchSession_generic:
         raise NotImplementedError()
     
     # functions for checking the nodes and filtering for fragments that exist as nodes
@@ -164,8 +177,6 @@ class MergerFinder_generic(ABC):
         fragment_pairs = list(itertools.permutations(fragments, 2))
         name_pairs = list(itertools.permutations(names, 2))
         return fragment_pairs, name_pairs
-
-
 
     def filter_synthons(self, synthon):
         """

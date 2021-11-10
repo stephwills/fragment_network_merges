@@ -9,10 +9,10 @@ import getpass
 from neo4j import GraphDatabase
 
 from scripts.config import config
-from scripts.find_merges_generic import MergerFinder_generic, add_required_synthons
+from scripts.find_merges_generic import MergerFinder_generic, add_required_synthons, SearchSession_generic
 
 
-class Neo4jDriverWrapper(object):
+class Neo4jDriverWrapper(SearchSession_generic):
 
     def __init__(self, session):
         self.session = session
