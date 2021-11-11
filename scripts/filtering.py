@@ -4,6 +4,7 @@ import argparse
 import json
 import os
 
+import tqdm
 from joblib import Parallel, delayed
 from rdkit import Chem
 from rdkit.Chem import rdmolfiles
@@ -15,7 +16,7 @@ from scripts.embedding_filter import embedding_filter
 from scripts.overlap_filter import overlap_filter
 from scripts.fragmenstein_filter import create_directories, fragmenstein_filter, place_smiles
 from scripts.interaction_fp_filter import remove_ligand, ifp_score
-
+from scripts.config import config
 
 def process_one_smi(merge_name, fragmentA, fragmentB, proteinA, proteinB, output_directory, num, smiles, synthon):
     """
@@ -30,9 +31,9 @@ def process_one_smi(merge_name, fragmentA, fragmentB, proteinA, proteinB, output
     :return: smiles (if all filters successful) or None
     :rtype: string or None
     """
+
     # create unique 'name' for the molecule including the fragment merge and smiles number
     name = merge_name + '_' + str(num)
-
     # get molecules (some functions take in molecule rather than file)
     merge_mol = Chem.MolFromSmiles(smiles)
     fragmentA_mol = rdmolfiles.MolFromMolFile(fragmentA)
@@ -47,7 +48,6 @@ def process_one_smi(merge_name, fragmentA, fragmentB, proteinA, proteinB, output
     passing_smiles = None  # stores the smiles if molecule is successful (otherwise is None)
     passing_name = None  # stores the name if molecule is successful (otherwise is None)
     if_score = None  # stores ifp score of smiles if successful (otherwise is None)
-
     result = descriptor_filter(smiles)
     if result == 'fail':
         failed_filter = 'descriptor_filter'
@@ -77,8 +77,10 @@ def process_one_smi(merge_name, fragmentA, fragmentB, proteinA, proteinB, output
         return failed_name, failed_smiles, failed_filter, passing_name, passing_smiles, if_score
 
     try:
+        print("launching fragmenstein in %s"%output_directory)
         json_fpath, mol_fpath, pdb_fpath = place_smiles(name, smiles, fragmentA, fragmentB, proteinA, output_directory)
         result = fragmenstein_filter(json_fpath)
+        print(result)
         if result == 'fail':
             failed_filter = 'fragmenstein_filter'
             failed_smiles = smiles
@@ -91,13 +93,21 @@ def process_one_smi(merge_name, fragmentA, fragmentB, proteinA, proteinB, output
             pdb_nolig = remove_ligand(pdb_fpath)
             if_score = ifp_score(mol_fpath, fragmentA, fragmentB, pdb_nolig)
             return failed_name, failed_smiles, failed_filter, passing_name, passing_smiles, if_score
-    except:
+    except Exception as e:
+            print(e)
+            import traceback
+            traceback.print_stack()
             failed_filter = 'fragmenstein_filter'
             failed_smiles = smiles
             failed_name = name
             return failed_name, failed_smiles, failed_filter, passing_name, passing_smiles, if_score
 
 
+def _resolveDataName(fname):
+    if os.path.isfile(fname):
+        return fname
+    else:
+        return os.path.join(config.FRAGALYSIS_DATA_DIR, fname)
 
 def main():
     # get file containing merges and all fragment/protein files
@@ -114,26 +124,25 @@ def main():
     # open json file containing merges
     merges_dict = open_json(args.merge_file)
     synthons, smiles = get_merges(merges_dict)
-    print(len(smiles))
+    print("Number of smiles: %d"%len(smiles))
 
     # all smiles for each pair are numbered to give unique identifier
     num = range(len(smiles))
 
     # get args needed for process_one_smi
-    fragmentA = args.fragment_A
-    fragmentB = args.fragment_B
-    proteinA = args.protein_A
-    proteinB = args.protein_B
+    fragmentA = _resolveDataName(args.fragment_A)
+    fragmentB = _resolveDataName(args.fragment_B)
+    proteinA = _resolveDataName(args.protein_A)
+    proteinB = _resolveDataName(args.protein_B)
     output_directory = args.output_directory
     merge_name = args.merge
 
     # create folder to save Fragmenstein files
     create_directories(output_directory)
-
     # filter all smiles for the pair
-    results = Parallel(n_jobs = -1)(delayed(process_one_smi)
+    results = Parallel(n_jobs = config.N_CPUS_FILTER_PAIR , backend="multiprocessing")(delayed(process_one_smi)
               (merge_name, fragmentA, fragmentB, proteinA, proteinB, output_directory, n, smi, syn)
-              for n, smi, syn in zip(num, smiles, synthons))
+              for n, smi, syn in zip(tqdm.tqdm(num), smiles, synthons))
 
     # if the molecule fails
     failed_name = [res[0] for res in results]
