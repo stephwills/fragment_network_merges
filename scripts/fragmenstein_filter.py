@@ -9,6 +9,8 @@ import tempfile
 from rdkit import Chem
 from fragmenstein import Victor
 
+from scripts.config import config
+
 def get_dict(json_file):
     """
     Function opens the json file to load the dictionary
@@ -104,7 +106,7 @@ def place_smiles(name, smiles, fragmentA, fragmentB, protein, output_directory):
 
     return json_new, mol_new, pdb_new
 
-def fragmenstein_filter(json_file):
+def fragmenstein_filter(json_file, comRMSD_threshold=1):
     """
     Function filters molecules for those where both fragments were considered in its placement,
     a negative ΔΔG and combined RMSD with the fragments of < 1.5A.
@@ -129,16 +131,19 @@ def fragmenstein_filter(json_file):
             if rmsd != None:
                 regarded += 1
 
+    if config.COM_RMSD:
+        comRMSD_threshold = config.COM_RMSD
+
     # only keep molecules where both fragments used in placement
     if regarded == 2:
         if deltaG < 0:  # keep molecules with negative ΔΔG
-            if comRMSD <= 1:
-                result = 'pass'
+            if comRMSD <= comRMSD_threshold:
+                result = True
             else:
-                result = 'fail'
+                result = False
         else:
-            result = 'fail'  # remove molecule with positive ΔΔG
+            result = False  # remove molecule with positive ΔΔG
     else:
-        result = 'fail'
+        result = False
 
     return result

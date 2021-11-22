@@ -96,6 +96,7 @@ def calc_bond_percentage(fragment_fp, merge_fp):
     """
     frag_count = 0
     merge_count = 0
+    # TODO: calculate as average or calculate percentage of bonds maintained in total?
 
     for i, j in zip(fragment_fp, merge_fp):
         if i > 0:  # only check bits in which the fragment makes an interaction
@@ -109,7 +110,7 @@ def calc_bond_percentage(fragment_fp, merge_fp):
 
     return perc
 
-def ifp_score(merge, fragmentA, fragmentB, prot):
+def ifp_score_avg(merge, fragmentA, fragmentB, prot):
     """
     Function to calculate the percentage bonds preserved between the merge and the fragment
     fingerprints.
@@ -139,3 +140,46 @@ def ifp_score(merge, fragmentA, fragmentB, prot):
     mean = (perc_A + perc_B) / 2
 
     return mean
+
+def ifp_score_total(merge, fragmentA, fragmentB, prot):
+    """
+    Function to calculate the percentage bonds preserved between the merge and the fragment
+    fingerprints.
+
+    :param merge: the file of the merge to filter
+    :type merge: mol file
+    :param fragmentA: the fragment A file
+    :type fragmentA: mol file
+    :param fragmentB: the fragment B file
+    :type fragmentB: mol file
+    :param prot: protein file
+    :type prot: pdb file
+
+    :return: average percentage preserved
+    :rtype: float
+    """
+    # load the molecules
+    protein = get_protein(prot)
+    merge_mol = get_mol(merge)
+    fA_mol = get_mol(fragmentA)
+    fB_mol = get_mol(fragmentB)
+    # create all the fingerprints
+    merge_fp, fA_fp, fB_fp = make_fp(protein, merge_mol), make_fp(protein, fA_mol), make_fp(protein, fB_mol)
+
+    frag_count = 0
+    merge_count = 0
+    # TODO: calculate as average or calculate percentage of bonds maintained in total?
+    # TODO: currently ignores if the merge is predicted to make any interactions BEYOND those that the fragments make
+    comb_frag_fp = [a + b for a, b in zip(fA_fp, fB_fp)]
+
+    for i, j in zip(comb_frag_fp, merge_fp):
+        if i > 0:  # only check bits in which the fragments make an interaction
+            frag_count += i
+            if i >= j:
+                merge_count += j
+            else:
+                merge_count += i  # avoid percentage >100%
+
+    perc = merge_count / frag_count
+
+    return perc

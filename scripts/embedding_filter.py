@@ -8,7 +8,10 @@ from rdkit import Chem
 from rdkit import RDLogger
 from rdkit.Chem import AllChem, rdFMCS, rdForceFieldHelpers
 
+from scripts.config import config
+
 RDLogger.DisableLog('rdApp.*')
+
 
 def get_mcs(full_mol, fragment):
     """
@@ -25,6 +28,7 @@ def get_mcs(full_mol, fragment):
     mcs = rdFMCS.FindMCS([full_mol, fragment])
     mcs_mol = Chem.MolFromSmarts(mcs.smartsString)
     return mcs_mol
+
 
 def add_coordinates(fragment, substructure):
     """
@@ -50,6 +54,7 @@ def add_coordinates(fragment, substructure):
     rwmol.AddConformer(rwconf)  # add the conformation to the substructure
     return rwmol
 
+
 def get_distance(coord1, coord2):
     """
     Function calculates the distance between two atoms in 3D space.
@@ -65,6 +70,7 @@ def get_distance(coord1, coord2):
     """
     sq = (coord1 - coord2) ** 2
     return np.sqrt(np.sum(sq))
+
 
 def check_overlap(molA, molB):
     """
@@ -100,6 +106,7 @@ def check_overlap(molA, molB):
             A.RemoveAtom(clash)  # remove atoms from one fragment
     return A, B
 
+
 def remove_xe(synthon):
     """
     Function to remove the xenon atom from the synthon.
@@ -113,6 +120,7 @@ def remove_xe(synthon):
     xe = Chem.MolFromSmiles('[Xe]')
     synth = AllChem.DeleteSubstructs(synthon, xe)
     return synth
+
 
 def embedding(fragA, fragB, full_mol, synth):
     """
@@ -138,11 +146,12 @@ def embedding(fragA, fragB, full_mol, synth):
     rwmolB = add_coordinates(fragB, synthB)
     newmolA, newmolB = check_overlap(rwmolA, rwmolB)  # check if atoms overlap
     combined_mol = Chem.CombineMols(newmolA, newmolB)  # combine mols to get reference molecule
-    #full_mol = Chem.AddHs(full_mol)
+    # full_mol = Chem.AddHs(full_mol)  #TODO: test with H removal
     embedded = AllChem.ConstrainedEmbed(Chem.Mol(full_mol), combined_mol, 42)  # do embedding
     rdForceFieldHelpers.MMFFOptimizeMolecule(embedded)  # optimize the embedding
-    #embedded = Chem.RemoveHs(embedded)
+    # embedded = Chem.RemoveHs(embedded)
     return embedded
+
 
 def calc_energy(mol):
     """
@@ -156,6 +165,7 @@ def calc_energy(mol):
     """
     mol_energy = AllChem.UFFGetMoleculeForceField(mol).CalcEnergy()
     return mol_energy
+
 
 def calc_unconstrained_energy(og_mol):
     """
@@ -178,7 +188,8 @@ def calc_unconstrained_energy(og_mol):
     avg = sum(unconstrained_energies) / len(unconstrained_energies)
     return avg
 
-def embedding_filter(merge, fragA, fragB, synthon):
+
+def embedding_filter(merge, fragA, fragB, synthon, energy_threshold=10):
     """
     Runs the filter by embedding (if possible) the molecule, calculating the energy of
     the constrained conformation, and comparing with the energy of the unconstrained
@@ -203,17 +214,19 @@ def embedding_filter(merge, fragA, fragB, synthon):
         unconst_energy = calc_unconstrained_energy(merge)
         # if the energy of the constrained conformation is less, then pass filter
         if const_energy <= unconst_energy:
-            result = 'pass'
+            result = True
         else:
             # if constrained energy >10-fold greater, then fail filter
+            if config.ENERGY_THRESHOLD:
+                energy_threshold = config.ENERGY_THRESHOLD
             ratio = const_energy / unconst_energy
-            if ratio >= 10:
-                result = 'fail'
+            if ratio >= energy_threshold:
+                result = False
+                embedded = None
             else:
-                result = 'pass'
+                result = True
     except:
-        result = 'fail'  # if embedding fails, then fail filter
-    if result == 'pass':
-        return embedded, result  # embedded molecule needed for next filter
-    elif result == 'fail':
-        return None, result
+        result = False  # if embedding fails, then fail filter
+        embedded = None
+
+    return embedded, result

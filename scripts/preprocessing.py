@@ -7,7 +7,7 @@ from rdkit import Chem
 from rdkit.Chem import rdmolfiles
 from scripts.config import config
 
-def open_json(fname): #open or load?
+def load_json(fname):
     """
     Function to open json file
     """
@@ -182,8 +182,34 @@ def check_fragment_pairs(fragment_pairs, name_pairs, target):
     wdirname = config.WORKING_DIR
     if not os.path.exists(wdirname):
         os.mkdir(wdirname)
-    filename = os.path.join(wdirname, 'fragment_pairs.json') #THIS SHOLD NOT BE HARD-CODED and it should check if exists
-    with open(filename, 'w') as f:
-        json.dump(filtered_name_pairs, f)
+    filename = os.path.join(wdirname, f'{target}_pairs.json')
+
+    # check if fragment pairs list exists for this target in the working directory
+    if os.path.exists(filename):
+        print(f'Fragment pairs have already been enumerated for this set of fragments against {target}')
+    else:
+        with open(filename, 'w') as f:
+            json.dump(filtered_name_pairs, f)
 
     return filtered_fragment_pairs, filtered_name_pairs
+
+def check_merges_run(smiles_pairs, name_pairs, output_dir):
+    """
+    Checks if a json file already exists in the output directory
+    for the file (avoid re-running queries).
+    """
+    already_run = []
+    if output_dir is not None:
+        for i, pair in enumerate(name_pairs):
+            merge = pair[0] + '_' + pair[1]
+            filename = merge + '.json'
+            filepath = os.path.join(output_dir, filename)
+            if os.path.isfile(filepath):
+                smiles_pairs.pop(i)
+                name_pairs.pop(i)
+                already_run.append(merge)
+
+        print('The following merges have already been run', already_run)
+        print(f'{len(name_pairs)} merge pairs remaining')
+
+        return smiles_pairs, name_pairs

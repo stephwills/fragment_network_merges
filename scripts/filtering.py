@@ -3,13 +3,13 @@
 import argparse
 import json
 import os
-
 import tqdm
+
 from joblib import Parallel, delayed
 from rdkit import Chem
 from rdkit.Chem import rdmolfiles
 
-from scripts.preprocessing import get_merges, open_json
+from scripts.preprocessing import get_merges, load_json
 from scripts.descriptor_filter import descriptor_filter
 from scripts.expansion_filter import expansion_filter
 from scripts.embedding_filter import embedding_filter
@@ -122,7 +122,7 @@ def main():
     args = parser.parse_args()
 
     # open json file containing merges
-    merges_dict = open_json(args.merge_file)
+    merges_dict = load_json(args.merge_file)
     synthons, smiles = get_merges(merges_dict)
     print("Number of smiles: %d"%len(smiles))
 

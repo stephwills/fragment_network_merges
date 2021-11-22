@@ -50,7 +50,7 @@ def descriptor_filter(smiles):
     """
     violations = calculate_properties(smiles)
     if violations <= 1:
-        result = 'pass'
+        result = True
     else:
-        result = 'fail'
+        result = False
     return result

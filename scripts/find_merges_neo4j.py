@@ -66,18 +66,22 @@ class Neo4jDriverWrapper(SearchSession_generic):
         """
         Expand fragment 'A' using the synthons generated from fragment 'B' using a neo4j
         query. Query limited to compounds available from vendors, with HAC > 15
-        and a maximum of 2 hops away.
+        and a maximum of number_hops away.
 
         :param smiles: smiles of the fragment to expand
         :type smiles: string
         :param synthon: synthon of the generated synthon
         :type synthon: string
+        :param number_hops: number of hops away from fragment A to look for merges
+        :type number_hops: int
 
         :return: expansions
         :rtype: set
         """
+        if config.NUMBER_HOPS:  # check if number of hops has been sent in config
+            number_hops = config.NUMBER_HOPS
         query = ("MATCH (fa:F2 {smiles: $smiles})"
-                    "-[:FRAG*0..%(number_hops)d]-(:F2)"  # to increase the number of hops, change '0..2' to '0..3'
+                    "-[:FRAG*0..%(number_hops)d]-(:F2)"
                     "<-[e:FRAG]-(c:Mol) WHERE"
                     " c.hac > 15 AND"
                     " (split(e.label, '|')[1] = $synthon OR split(e.label, '|')[4] = $synthon)"

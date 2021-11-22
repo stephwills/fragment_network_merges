@@ -143,7 +143,7 @@ class MergerFinder_generic(ABC):
             expanded_synthons = 0
             for synthon in synthons:  # expand fragment A using each synthon
                 print(f'Running synthon {number}')
-                expansions = session.find_expansions( fragmentA, synthon)
+                expansions = session.find_expansions(fragmentA, synthon)
                 all_expansions[synthon] = list(expansions)  # store in dictionary with the synthon as key
                 print(f'Synthon {number}: found {len(expansions)} expansions')
                 number += 1
