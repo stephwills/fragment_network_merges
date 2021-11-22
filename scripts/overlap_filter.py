@@ -7,6 +7,8 @@ import numpy as np
 from rdkit import Chem
 from rdkit.Chem import rdShapeHelpers
 
+from scripts.config import config
+
 def geometric_mean(distA, distB):
     """
     Calculates the geometric mean between the two distances.
@@ -41,7 +43,7 @@ def calc_distances(merge, proteinA, proteinB):
     distanceB = rdShapeHelpers.ShapeProtrudeDist(merge, proteinB)
     return distanceA, distanceB
 
-def overlap_filter(merge, proteinA, proteinB):
+def overlap_filter(merge, proteinA, proteinB, clash_dist=0.15):
     """
     Rules out molecules that have a >10% overlap with the protein (i.e. >90%
     protrusion).
@@ -58,8 +60,10 @@ def overlap_filter(merge, proteinA, proteinB):
     """
     distanceA, distanceB = calc_distances(merge, proteinA, proteinB)  # calculate distances
     mean = geometric_mean(distanceA, distanceB)  # calculate mean of distances
-    if mean >= 0.85:  # if protrusion > 85% (overlap < 15%)
-        result = 'pass'
+    if config.CLASH_DIST:
+        clash_dist = config.CLASH_DIST
+    if mean >= clash_dist:  # if protrusion > 85% (overlap < 15%)
+        result = True
     else:
-        result = 'fail'
+        result = False
     return result

@@ -5,10 +5,10 @@ import os
 
 from scripts.config import config
 from scripts.preprocessing import get_smiles, check_fragment_pairs
-from scripts.find_merges import  getFragmentNetworkSearcher
+from scripts.find_merges import getFragmentNetworkSearcher
 
 
-def preprocess_fragments(target, fragment_names):
+def preprocess_fragments(target, fragment_names, output_directory):
     """
     Preprocess the list of fragments and get all the possible fragment pairs
     to generate merges from.
@@ -23,7 +23,10 @@ def preprocess_fragments(target, fragment_names):
     # get all possible combinations of smiles
     smiles_pairs, name_pairs = fragmentNetworkSearcher.get_combinations(fragment_smiles, fragment_names)
     smiles_pairs, name_pairs = check_fragment_pairs(smiles_pairs, name_pairs, target)
+    smiles_pairs, name_pairs = check_merges_run(smiles_pairs, name_pairs, output_directory)
+
     return smiles_pairs, name_pairs
+
 
 def main():
     parser = argparse.ArgumentParser(epilog='''
@@ -36,14 +39,10 @@ def main():
 
     args = parser.parse_args()
 
-    if os.path.isdir(args.target):
-        config.FRAGALYSIS_DATA_DIR = os.path.split( args.target )[0]
-
     config.WORKING_DIR = args.wdir
 
     # get all fragment pairs and check they exist in the network
-    # TODO: Ensure that already computed results are not recomputed.
-    smiles_pairs, name_pairs = preprocess_fragments(args.target, args.fragments)
+    smiles_pairs, name_pairs = preprocess_fragments(args.target, args.fragments, args.output_directory)
     print("Fragments have been processed!")
 
     fragmentNetworkSearcher = getFragmentNetworkSearcher()
