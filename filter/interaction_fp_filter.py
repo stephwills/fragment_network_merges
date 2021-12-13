@@ -8,7 +8,7 @@ from Bio.PDB.PDBParser import PDBParser
 from Bio.PDB.PDBIO import PDBIO
 from Bio.PDB import Select
     
-def get_protein(protein):
+def _get_protein(protein):
     """
     Function loads the protein from the pdb file.
 
@@ -22,7 +22,7 @@ def get_protein(protein):
     protein.protein = True
     return protein
 
-def get_mol(mol):
+def _get_mol(mol):
     """
     Function loads the molecule from the mol file.
 
@@ -96,7 +96,6 @@ def calc_bond_percentage(fragment_fp, merge_fp):
     """
     frag_count = 0
     merge_count = 0
-    # TODO: calculate as average or calculate percentage of bonds maintained in total?
 
     for i, j in zip(fragment_fp, merge_fp):
         if i > 0:  # only check bits in which the fragment makes an interaction
@@ -112,8 +111,8 @@ def calc_bond_percentage(fragment_fp, merge_fp):
 
 def ifp_score_avg(merge, fragmentA, fragmentB, prot):
     """
-    Function to calculate the percentage bonds preserved between the merge and the fragment
-    fingerprints.
+    Function to calculate the average percentage bonds preserved between the merge and the fragment
+    fingerprints. Calculates for each fragment and returns the average.
 
     :param merge: the file of the merge to filter
     :type merge: mol file
@@ -128,10 +127,10 @@ def ifp_score_avg(merge, fragmentA, fragmentB, prot):
     :rtype: float
     """
     # load the molecules
-    protein = get_protein(prot)
-    merge_mol = get_mol(merge)
-    fA_mol = get_mol(fragmentA)
-    fB_mol = get_mol(fragmentB)
+    protein = _get_protein(prot)
+    merge_mol = _get_mol(merge)
+    fA_mol = _get_mol(fragmentA)
+    fB_mol = _get_mol(fragmentB)
     # create all the fingerprints
     merge_fp, fA_fp, fB_fp = make_fp(protein, merge_mol), make_fp(protein, fA_mol), make_fp(protein, fB_mol)
 
@@ -143,7 +142,7 @@ def ifp_score_avg(merge, fragmentA, fragmentB, prot):
 
 def ifp_score_total(merge, fragmentA, fragmentB, prot):
     """
-    Function to calculate the percentage bonds preserved between the merge and the fragment
+    Function to calculate the percentage bonds preserved between the merge and both fragment
     fingerprints.
 
     :param merge: the file of the merge to filter
@@ -155,31 +154,34 @@ def ifp_score_total(merge, fragmentA, fragmentB, prot):
     :param prot: protein file
     :type prot: pdb file
 
-    :return: average percentage preserved
+    :return: percentage total bonds preserved
     :rtype: float
     """
     # load the molecules
-    protein = get_protein(prot)
-    merge_mol = get_mol(merge)
-    fA_mol = get_mol(fragmentA)
-    fB_mol = get_mol(fragmentB)
+    protein = _get_protein(prot)
+    merge_mol = _get_mol(merge)
+    fA_mol = _get_mol(fragmentA)
+    fB_mol = _get_mol(fragmentB)
     # create all the fingerprints
     merge_fp, fA_fp, fB_fp = make_fp(protein, merge_mol), make_fp(protein, fA_mol), make_fp(protein, fB_mol)
 
     frag_count = 0
     merge_count = 0
-    # TODO: calculate as average or calculate percentage of bonds maintained in total?
-    # TODO: currently ignores if the merge is predicted to make any interactions BEYOND those that the fragments make
+
     comb_frag_fp = [a + b for a, b in zip(fA_fp, fB_fp)]
-
-    for i, j in zip(comb_frag_fp, merge_fp):
-        if i > 0:  # only check bits in which the fragments make an interaction
-            frag_count += i
-            if i >= j:
-                merge_count += j
-            else:
-                merge_count += i  # avoid percentage >100%
-
-    perc = merge_count / frag_count
+    perc = calc_bond_percentage(comb_frag_fp, merge_fp)
 
     return perc
+
+def ifp_score(merge, fragmentA, fragmentB, prot, type_calculation='avg'):
+    """
+    Calculates the percentage of interactions made by the original fragments that are
+    maintained by the merge. Can either calculate as the average of the score for each
+    fragment or as the percentage of all interactions made.
+    """
+    if type_calculation == 'avg':
+        score = ifp_score_avg(merge, fragmentA, fragmentB, prot)
+    elif type_calculation == 'total':
+        score = ifp_score_total(merge, fragmentA, fragmentB, prot)
+
+    return score

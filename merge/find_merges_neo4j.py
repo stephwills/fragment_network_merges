@@ -1,15 +1,14 @@
 """
-Used to generate merges between two fragments using the fragment network.
+Used to generate merges between two fragments using the fragment network using port-forwarding.
 Uses code from https://github.com/tdudgeon/fragment-network-merges.
 """
 
-import os
 import getpass
 
 from neo4j import GraphDatabase
 
-from scripts.config import config
-from scripts.find_merges_generic import MergerFinder_generic, add_required_synthons, SearchSession_generic
+from merge.config_merge import config_merge
+from merge.find_merges_generic import MergerFinder_generic, add_required_synthons, SearchSession_generic
 
 
 class Neo4jDriverWrapper(SearchSession_generic):
@@ -18,12 +17,18 @@ class Neo4jDriverWrapper(SearchSession_generic):
         self.session = session
 
     def __enter__(self):
+        """
+        Starts the neo4j search session
+        """
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
+        """
+        Closes the neo4j search session
+        """
         self.session.close()
 
-    def _find_molecule_node(self, tx, smiles):
+    def _find_molecule_node(self, tx, smiles:str):
         """
         Finds node in the fragment network.
 
@@ -39,17 +44,28 @@ class Neo4jDriverWrapper(SearchSession_generic):
             node = record['m']
             return node
 
-    def find_molecule_node(self, fragment):
+    def find_molecule_node(self, fragment:str):
+        """
+        Implements self._find_molecule_node()
+        """
         return self.session.read_transaction(self._find_molecule_node, fragment)
 
-    def _find_synthons(self, tx, smiles):
+    def _find_synthons(self, tx, smiles:str) -> list:
         """
         Query for all child fragments (recursive).
         Extract the label property of each edge and collect a set of SMILES that match our needs.
+
+        :param tx: neo4j transaction
+        :type tx: neo4j transaction
+        :param smiles: smiles string of molecule to fragment
+        :type smiles: str
+
+        :returns: list of synthons
+        :rtype: list
         """
         labels = set()
         for record in tx.run('MATCH (fa:F2 {smiles: $smiles})-[e:FRAG*]->(f:F2) RETURN e',
-                                smiles=smiles):
+                             smiles=smiles):
             edges = record['e']
             for edge in edges:
                 s = edge['label']
@@ -58,42 +74,50 @@ class Neo4jDriverWrapper(SearchSession_generic):
                 add_required_synthons(labels, tokens[4])
         return list(labels)
 
-    def find_synthons(self, fragment):
+    def find_synthons(self, fragment:str):
+        """
+        Implements self._find_synthons()
+        """
         return self.session.read_transaction(self._find_synthons, fragment)
 
-
-    def _find_expansions(self, tx, smiles, synthon, number_hops=2):
+    def _find_expansions(self, tx, smiles:str, synthon:str, number_hops:int, min_hac:int, max_hac:int) -> set:
         """
         Expand fragment 'A' using the synthons generated from fragment 'B' using a neo4j
-        query. Query limited to compounds available from vendors, with HAC > 15
-        and a maximum of number_hops away.
+        query. Query limited to compounds available from vendors a specified number of hops away,
+        and filtered according to min/max heavy atom count.
 
         :param smiles: smiles of the fragment to expand
-        :type smiles: string
+        :type smiles: str
         :param synthon: synthon of the generated synthon
-        :type synthon: string
+        :type synthon: str
         :param number_hops: number of hops away from fragment A to look for merges
         :type number_hops: int
+        :param min_hac: minimum number of heavy atoms of merges
+        :type min_hac: int
+        :param max_hac: maximum number of heavy atoms of merges
+        :type max_hac: int
 
         :return: expansions
         :rtype: set
         """
-        if config.NUMBER_HOPS:  # check if number of hops has been sent in config
-            number_hops = config.NUMBER_HOPS
         query = ("MATCH (fa:F2 {smiles: $smiles})"
-                    "-[:FRAG*0..%(number_hops)d]-(:F2)"
-                    "<-[e:FRAG]-(c:Mol) WHERE"
-                    " c.hac > 15 AND"
-                    " (split(e.label, '|')[1] = $synthon OR split(e.label, '|')[4] = $synthon)"
-                    " RETURN DISTINCT c"%{"number_hops":number_hops})
+                 "-[:FRAG*0..%(number_hops)d]-(:F2)"
+                 "<-[e:FRAG]-(c:Mol) WHERE"
+                 " %(min_hac)d <= c.hac <= %(max_hac)d AND"
+                 " (split(e.label, '|')[1] = $synthon OR split(e.label, '|')[4] = $synthon)"
+                 " RETURN DISTINCT c" % {"number_hops": number_hops, "min_hac": min_hac, "max_hac": max_hac})
         expansions = set()
         for record in tx.run(query, smiles=smiles, synthon=synthon):
             node = record['c']
             expansions.add(node['smiles'])
         return expansions
 
-    def find_expansions(self, smiles, synthon, number_hops=2):
-        return self.session.read_transaction(self._find_expansions, smiles, synthon, number_hops)
+    def find_expansions(self, smiles:str, synthon:str, number_hops:int=config_merge.NUM_HOPS, min_hac:int=config_merge.MIN_HAC,
+                        max_hac:int=config_merge.MAX_HAC) -> set:
+        """
+        Implements self.find_expansions
+        """
+        return self.session.read_transaction(self._find_expansions, smiles, synthon, number_hops, min_hac, max_hac)
 
 
 class MergerFinder_neo4j(MergerFinder_generic):
@@ -104,12 +128,12 @@ class MergerFinder_neo4j(MergerFinder_generic):
     @property
     def driver(self):
         if self._driver is None:
-            if not config.NEO4J_PASS:
+            if not config_merge.NEO4J_PASS:
                 password = getpass.getpass()
             else:
-                password = config.NEO4J_PASS
+                password = config_merge.NEO4J_PASS
             self._driver = GraphDatabase.driver("bolt://localhost:7687",
-                                          auth=(config.NEO4J_USER, password))
+                                                auth=(config_merge.NEO4J_USER, password))
         return self._driver
 
     @driver.deleter
@@ -119,19 +143,3 @@ class MergerFinder_neo4j(MergerFinder_generic):
 
     def getSearchSession(self):
         return Neo4jDriverWrapper(self.driver.session())
-
-
-if __name__ == "__main__":
-    from rdkit import Chem
-    smi = Chem.MolToSmiles(Chem.MolFromSmiles("CC=1C=CC(CS(=O)(=O)N)=CC1F"))
-    print(smi)
-    merger = MergerFinder_neo4j()
-    results = merger.check_for_nodes([smi])
-    print(results)
-
-    results = merger.get_synthons(smi)
-    print(results)
-
-    smi2 = Chem.MolToSmiles(Chem.MolFromSmiles("CS(=O)(=O)NCCC=1C=CC=CC1"))
-    results = merger.get_expansions([smi, smi2], ["x0034_0B", "x0176_0B"], "nsp13", None)
-    print(results)
