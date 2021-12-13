@@ -133,19 +133,7 @@ dmypy.json
 # data directory
 data/
 
-# ignore data files
-Mpro/
-nsp13/
-
 # other
 .vscode
-tests/
-scripts/archive/
-scripts/alternative/
-notebooks/
-archived/
-SuCOS/
-run_merge_generation.ipynb
-investigate_queries.ipynb
 tests/test_output/
 tests/test_working/
