@@ -1,19 +1,19 @@
 """Runs the preprocessing of fragments and merge generation"""
 
 import argparse
-import os
 
-from scripts.config import config
-from scripts.preprocessing import get_smiles, check_fragment_pairs
-from scripts.find_merges import getFragmentNetworkSearcher
+from merge.config_merge import config_merge
+from merge.preprocessing import get_smiles, check_fragment_pairs, check_merges_run
+from merge.find_merges import getFragmentNetworkSearcher
 
 
-def preprocess_fragments(target, fragment_names, output_directory):
+def preprocess_fragments(target, fragment_names, output_dir):
     """
     Preprocess the list of fragments and get all the possible fragment pairs
     to generate merges from.
     """
     fragmentNetworkSearcher = getFragmentNetworkSearcher()
+
     # get all the smiles of the fragments
     fragment_smiles = [get_smiles(target, f) for f in fragment_names]
 
@@ -22,8 +22,8 @@ def preprocess_fragments(target, fragment_names, output_directory):
 
     # get all possible combinations of smiles
     smiles_pairs, name_pairs = fragmentNetworkSearcher.get_combinations(fragment_smiles, fragment_names)
-    smiles_pairs, name_pairs = check_fragment_pairs(smiles_pairs, name_pairs, target)
-    smiles_pairs, name_pairs = check_merges_run(smiles_pairs, name_pairs, output_directory)
+    smiles_pairs, name_pairs = check_fragment_pairs(smiles_pairs, name_pairs, target)  # check distance between pair
+    smiles_pairs, name_pairs = check_merges_run(smiles_pairs, name_pairs, output_dir)  # check if merges run already
 
     return smiles_pairs, name_pairs
 
@@ -34,23 +34,24 @@ def main():
     python -m scripts.run_database_query -t nsp13 -f x0034_0B x0176_0B x0212_0B -o data/example_folder''')
     parser.add_argument('-t', '--target', help='the protein target (e.g. nsp13)', required=True)
     parser.add_argument('-f', '--fragments', nargs='+', help='the list of fragments to merge. E.g. x0032_0A x0034_0B', required=True)
-    parser.add_argument('-o', '--output_directory', help='the directory to write the merge files to', required=True)
-    parser.add_argument('-w', '--wdir', help='the directory where intermediate results will be computed', required=False)
+    parser.add_argument('-o', '--output_dir', help='the directory to write the merge files to', required=True)
+    parser.add_argument('-w', '--working_dir', help='the directory where intermediate results will be computed', required=False)
 
     args = parser.parse_args()
 
-    config.WORKING_DIR = args.wdir
+    # check if working dir set
+    if args.working_dir:
+        config_merge.WORKING_DIR = args.working_dir
 
     # get all fragment pairs and check they exist in the network
-    smiles_pairs, name_pairs = preprocess_fragments(args.target, args.fragments, args.output_directory)
+    smiles_pairs, name_pairs = preprocess_fragments(args.target, args.fragments, args.output_dir)
     print("Fragments have been processed!")
-
-    fragmentNetworkSearcher = getFragmentNetworkSearcher()
 
     # run the database query; this will create json files containing the merges for each pair
     # in the output directory
+    fragmentNetworkSearcher = getFragmentNetworkSearcher()
     for smiles_pair, name_pair in zip(smiles_pairs, name_pairs): #TODO: We may perform several parallel queries, need to talk to Tim
-        fragmentNetworkSearcher.get_expansions(smiles_pair, name_pair, args.target, args.output_directory)
+        fragmentNetworkSearcher.get_expansions(smiles_pair, name_pair, args.target, args.output_dir)
 
 if __name__ == "__main__":
     main()

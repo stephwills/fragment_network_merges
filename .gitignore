@@ -147,4 +147,5 @@ archived/
 SuCOS/
 run_merge_generation.ipynb
 investigate_queries.ipynb
-
+tests/test_output/
+tests/test_working/
