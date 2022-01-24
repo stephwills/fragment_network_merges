@@ -18,8 +18,8 @@ from filter.generic_filter import Filter_generic
 class ExpansionFilter(Filter_generic):
 
     def __init__(self, smis: list, synthons: list, fragmentA, fragmentB, proteinA=None, proteinB=None,
-                 merge=None, mols=None):
-        super().__init__(smis, synthons, fragmentA, fragmentB, proteinA, proteinB, merge, mols)
+                 merge=None, mols=None, names=None):
+        super().__init__(smis, synthons, fragmentA, fragmentB, proteinA, proteinB, merge, mols, names)
         self.results = None
 
     def _check_for_mcs(self, _mols: list):

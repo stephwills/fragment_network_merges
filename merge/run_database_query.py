@@ -31,7 +31,7 @@ def preprocess_fragments(target, fragment_names, output_dir):
 def main():
     parser = argparse.ArgumentParser(epilog='''
     Example
-    python -m scripts.run_database_query -t nsp13 -f x0034_0B x0176_0B x0212_0B -o data/example_folder''')
+    python -m merge.run_database_query -t nsp13 -f x0034_0B x0176_0B x0212_0B -o data/example_folder''')
     parser.add_argument('-t', '--target', help='the protein target (e.g. nsp13)', required=True)
     parser.add_argument('-f', '--fragments', nargs='+', help='the list of fragments to merge. E.g. x0032_0A x0034_0B', required=True)
     parser.add_argument('-o', '--output_dir', help='the directory to write the merge files to', required=True)

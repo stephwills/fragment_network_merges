@@ -198,7 +198,7 @@ class MergerFinder_generic(ABC):
 
         return filtered_synthons
 
-    def get_expansions(self, fragments:tuple, names:tuple, target:str, output_dir:str) -> dict:
+    def get_expansions(self, fragments:tuple, names:tuple, target:str, output_dir:str, synthons: list = None) -> dict:
         """
         Function executes the whole process, generating synthons for fragment B and using them to
         generate expansions of fragment A. Returns a dictionary containing all the synthons as keys,
@@ -213,6 +213,8 @@ class MergerFinder_generic(ABC):
         :type target: str
         :param output_dir: name of directory to save output files
         :type output_dir: str
+        :param synthons: list of synthons to run a pre-defined query (e.g. in the case of a focused search)
+        :type synthons: list
 
         :return: dictionary of merges
         :rtype: dict
@@ -233,13 +235,24 @@ class MergerFinder_generic(ABC):
                 with open(filepath) as f:
                     return json.load(f)  # if file exists, returns the existing merge dict
 
-        # generate the synthons from fragment B
-        synthons = self.get_synthons(fragmentB)
+        if synthons:
+            # if we have pre-defined synthons that we want to use (e.g. for a focused 3-hop query after doing 2-hop)
+            true_synthons = self.get_synthons(fragmentB)
+            for i, synthon in enumerate(true_synthons):
+                if synthon not in synthons:
+                    print(f"Synthon {synthon} is not a synthon of fragment {nameB}. Cannot run expansion.")
+                    synthons.remove(synthon)
+            print(f'{len(synthons)} pre-defined synthons are being used for expansion')
+            print(synthons)
 
-        # filter synthons
-        synthons = self.carbons_check(synthons)  # filter by number of carbons
-        synthons = self.substructure_check(synthons, molA, molB)  # filter by whether in fragment A
-        print(f'{len(synthons)} synthons remaining after filtering')
+        else:
+            # generate the synthons from fragment B
+            synthons = self.get_synthons(fragmentB)
+
+            # filter synthons
+            synthons = self.carbons_check(synthons)  # filter by number of carbons
+            synthons = self.substructure_check(synthons, molA, molB)  # filter by whether in fragment A
+            print(f'{len(synthons)} synthons remaining after filtering')
 
         # run database query and expansion
         all_expansions = {}

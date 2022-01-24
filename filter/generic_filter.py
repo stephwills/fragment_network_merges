@@ -2,8 +2,6 @@
 Abstract class for filtering step in the pipeline
 """
 
-import os
-
 from rdkit.Chem import rdmolfiles
 from abc import ABC, abstractmethod
 
@@ -13,7 +11,8 @@ class Filter_generic(ABC):
     Abstract class for filtering step
     """
     def __init__(self, smis: list, synthons=None, fragmentA=None, fragmentB=None, proteinA=None,
-                 proteinB=None, merge=None, mols=None):
+                 proteinB=None, merge=None, mols=None, names=None):
+        self.names = names
         self.smis = smis  # list of SMILES of merges
         self.synthons = synthons  # list of synthons corresponding to SMILES of merges
         self.fragmentA = fragmentA  # filepath
@@ -29,9 +28,17 @@ class Filter_generic(ABC):
         self._proteinA = rdmolfiles.MolFromPDBFile(self.proteinA)  # RDKit molecule
         self._proteinB = rdmolfiles.MolFromPDBFile(self.proteinB)  # RDKit molecule
 
+        # to store filepaths of placed files
+        self.mol_files = None
+        self.apo_files = None
+        self.holo_files = None
+
     def setattrs(self, **kwargs):
         for k, v in kwargs.items():
             setattr(self, k, v)
+
+    def get_placed_files(self):
+        return self.mol_files, self.apo_files, self.holo_files
 
     @abstractmethod
     def filter_smi(self):
