@@ -177,6 +177,3 @@ def main():
 if __name__ == "__main__":
     main()
 
-# config = 'tests.test_config'
-# cls = getattr(importlib.import_module(config), 'TestConfig')  # retrieve the class
-# print(cls.CONFIG_DICT['FRAGALYSIS_DATA_DIR'])
