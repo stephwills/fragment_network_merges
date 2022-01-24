@@ -14,8 +14,8 @@ from filter.generic_filter import Filter_generic
 
 class OverlapFilter(Filter_generic):
 
-    def __init__(self, smis: list, synthons: list, fragmentA, fragmentB, proteinA, proteinB, merge, mols):
-        super().__init__(smis, synthons, fragmentA, fragmentB, proteinA, proteinB, merge, mols)
+    def __init__(self, smis: list, synthons: list, fragmentA, fragmentB, proteinA, proteinB, merge, mols, names):
+        super().__init__(smis, synthons, fragmentA, fragmentB, proteinA, proteinB, merge, mols, names)
         self.results = None
 
     def geometric_mean(self, distA: float, distB: float) -> float:

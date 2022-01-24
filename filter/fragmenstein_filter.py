@@ -19,8 +19,8 @@ from filter.generic_filter import Filter_generic
 class FragmensteinFilter(Filter_generic):
 
     def __init__(self, smis: list, synthons: list, fragmentA, fragmentB, proteinA, proteinB,
-                 merge=None, mols=None):
-        super().__init__(smis, synthons, fragmentA, fragmentB, proteinA, proteinB, merge, mols)
+                 merge=None, mols=None, names=None):
+        super().__init__(smis, synthons, fragmentA, fragmentB, proteinA, proteinB, merge, mols, names)
         self.results = None
 
     def _get_dict(self, json_file: str) -> dict:
@@ -58,19 +58,15 @@ class FragmensteinFilter(Filter_generic):
         if not os.path.exists(os.path.join(output_dir, 'fragmenstein')):
             os.mkdir(os.path.join(output_dir, 'fragmenstein'))
 
-    def _get_name(self, num: int) -> str:
+    def _get_name(self, name) -> str:
         """
-        Name the files using the names of the fragments (get from their files), e.g. x0034_0B_x0176_0B_24
-
-        :param num: identified to use for naming the merge
-        :type num: int
+        Get the merge names used in the filepaths - Fragmenstein replaces the underscores with hyphens.
 
         :return: name
         :rtype: str
         """
-        name = self.merge.replace('_', '-')
-        name = f'{name}-{num}'
-        return name
+        _name = name.replace('_', '-')
+        return _name
 
     def _move_file(self, name, last_dir, new_dir, ext):
         # move the json file
@@ -99,6 +95,7 @@ class FragmensteinFilter(Filter_generic):
         :param residue: covalent residue for PyRosetta, e.g. 2B
         :type residue: str
         """
+        print(name)
         # create temporary directory to write files to
         temp_dir = tempfile.TemporaryDirectory(dir=f'{working_dir}/tempfiles/')
 
@@ -129,7 +126,7 @@ class FragmensteinFilter(Filter_generic):
 
         return new_files
 
-    def filter_smi(self, idx: int, smi: str, comRMSD_threshold: float = config_filter.COM_RMSD) -> Tuple:
+    def filter_smi(self, name: str, smi: str, comRMSD_threshold: float = config_filter.COM_RMSD) -> Tuple:
         """
         Function filters molecules for those where both fragments were considered in its placement,
         a negative ΔΔG and combined RMSD with the fragments of < 1.5A.
@@ -144,12 +141,14 @@ class FragmensteinFilter(Filter_generic):
         :return: returns 'pass' or 'fail'; molecule minimized by Fragmenstein
         :rtype: tuple
         """
-        merge_name = self._get_name(idx)
+        merge_name = self._get_name(name)
+        print(merge_name)
         new_files = self.place_smiles(merge_name, smi)
 
         # get json_file for filtering and mol_file to get mol
         json_file = new_files[0]
         mol_file = new_files[1]
+        holo_file = new_files[2]
         minimised_mol = rdmolfiles.MolFromMolFile(mol_file)
 
         data = self._get_dict(json_file)  # load the dictionary from the json file
@@ -174,7 +173,7 @@ class FragmensteinFilter(Filter_generic):
             for f in new_files:
                 os.remove(f)
 
-        return result, minimised_mol
+        return result, minimised_mol, mol_file, holo_file
 
     def filter_all(self, cpus: int = config_filter.N_CPUS_FILTER_PAIR) -> Tuple[list, list]:
         """
@@ -187,9 +186,11 @@ class FragmensteinFilter(Filter_generic):
         :rtype: tuple
         """
         self._create_directories()
-        idxs = range(len(self.smis))  # generate numbers to number results in their filenames
-        res = Parallel(n_jobs=cpus, backend='multiprocessing')(delayed(self.filter_smi)(idx, smi) for idx, smi in
-                                                               zip(idxs, self.smis))
+        print('name:', self.names)
+        res = Parallel(n_jobs=cpus, backend='multiprocessing')(delayed(self.filter_smi)(name, smi) for name, smi in
+                                                               zip(self.names, self.smis))
         self.results = [r[0] for r in res]
         self.mols = [r[1] for r in res]
+        self.mol_files = [r[2] for r in res]
+        self.holo_files = [r[3] for r in res]
         return self.results, self.mols

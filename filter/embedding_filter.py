@@ -59,8 +59,8 @@ def remove_xe(synthon):
 class EmbeddingFilter(Filter_generic):
 
     def __init__(self, smis: list, synthons: list, fragmentA, fragmentB, proteinA=None, proteinB=None, merge=None,
-                 mols=None):
-        super().__init__(smis, synthons, fragmentA, fragmentB, proteinA, proteinB, merge, mols)
+                 mols=None, names=None):
+        super().__init__(smis, synthons, fragmentA, fragmentB, proteinA, proteinB, merge, mols, names)
         self.results = None
 
     def _get_mcs(self, full_mol, fragment):

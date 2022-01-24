@@ -137,3 +137,4 @@ data/
 .vscode
 tests/test_output/
 tests/test_working/
+test.pdb

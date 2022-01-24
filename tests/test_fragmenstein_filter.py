@@ -16,6 +16,7 @@ fragmentB_path = get_mol('Mpro', 'x0678_0A', frag_dir)
 proteinA_path = get_protein('Mpro', 'x0107_0A', frag_dir)
 proteinB_path = get_protein('Mpro', 'x0678_0A', frag_dir)
 merge = 'x107-0A-x0678-0A'
+name = 'x107-0A-x0678-0A-123'
 smi = 'NC(=O)CN1CCC2(C1)CC1(C2)OCCO1'
 synthon = 'NC(=O)C[Xe]'
 filter = FragmensteinFilter([smi], [synthon], fragmentA_path, fragmentB_path, proteinA_path, proteinB_path, merge)
