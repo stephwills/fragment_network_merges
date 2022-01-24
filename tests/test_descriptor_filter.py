@@ -27,16 +27,3 @@ class TestDescriptorFilter(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
-
-
-# from rdkit import Chem
-# from rdkit.Chem import rdmolfiles
-#
-# smi = ['NC(=O)CN1CCC2(C1)CC1(C2)OCCO1']
-# merge = [Chem.MolFromSmiles('NC(=O)CN1CCC2(C1)CC1(C2)OCCO1')]
-# synthon = [Chem.MolFromSmiles('NC(=O)C[Xe]')]
-# fragmentA = 'tests/Mpro-x0107_0A.mol'
-# fragmentB = 'tests/Mpro-x0678_0A.mol'
-# proteinA = [rdmolfiles.MolFromPDBFile('tests/Mpro-x0107_0A_apo-desolv.pdb')]
-# proteinB = [rdmolfiles.MolFromPDBFile('tests/Mpro-x0678_0A_apo-desolv.pdb')]
-#
