@@ -40,10 +40,10 @@ class TestFindMerges(unittest.TestCase):
         self.assertEqual(10, len(synthon_dict['x0034_0B']))
 
     def test_expand_fragmentA(self):
-        name_pairs = [["x0034_0B", "x0176_0B"]]
+        name_pairs = [["x0034_0B", "x0176_0B"], ["x0034_0B", "x0183_0B"]]
         target = 'nsp13'
         output_dir = 'tests/test_output'
-        merger.expand_fragmentA(name_pairs, target, output_dir)
+        merger.expand_fragmentA(name_pairs, target, output_dir=output_dir)
 
 
 if __name__ == '__main__':
