@@ -411,7 +411,25 @@ class MergerFinder_generic(ABC):
 
         return all_expansions
 
-    def expand_fragmentA(self, name_pairs, target,  output_dir=None, working_dir=config_merge.WORKING_DIR):
+    def _expand_fragmentA(self, nameA, pair_dict, target,  output_dir=None, working_dir=config_merge.WORKING_DIR):
+        nameBs = pair_dict[nameA]
+        unique_synthons, synthon_dict = self.get_unique_synthons(nameA, nameBs, target)
+        all_expansions = self.get_all_expansions(nameA, unique_synthons, target, output_dir, working_dir)
+
+        for nameB in nameBs:
+            # save a file containing expansions for each fragment pair
+            dict_to_save = {}
+            synthons = synthon_dict[nameB]
+            for synthon in synthons:
+                dict_to_save[synthon] = all_expansions[synthon]
+
+            if output_dir:
+                fname = nameA + '_' + nameB + '.json'
+                fname = os.path.join(output_dir, fname)
+                with open(fname, 'w') as f:
+                    json.dump(dict_to_save, f)
+
+    def expand_fragmentA(self, name_pairs, target, cpus=2, output_dir=None, working_dir=config_merge.WORKING_DIR):
         """
         Function is given the whole list of pairs of enumerated fragments and generates all merges.
         Creates files in the output directory containing the expansions for each pair.
@@ -420,35 +438,22 @@ class MergerFinder_generic(ABC):
         :type name_pairs: list
         :param target: name of target, e.g. 'nsp13'
         :type target: str
+        :param cpus: number of CPUs to parallelize
+        :type cpus: int
         :param output_dir: output directory
         :type output_dir: str
         :param working_dir: working directory
         :type working_dir: str
         """
         # check for working dir
+        from joblib import Parallel, delayed
         if not os.path.exists(working_dir):
             os.mkdir(working_dir)
 
         # get fragBs to be used for expanding each fragA
         pair_dict = get_pair_dict(name_pairs)
 
-        for nameA in pair_dict:
-            nameBs = pair_dict[nameA]
-            unique_synthons, synthon_dict = self.get_unique_synthons(nameA, nameBs, target)
-            all_expansions = self.get_all_expansions(nameA, unique_synthons, target, output_dir, working_dir)
-
-            for nameB in nameBs:
-                # save a file containing expansions for each fragment pair
-                dict_to_save = {}
-                synthons = synthon_dict[nameB]
-                for synthon in synthons:
-                    dict_to_save[synthon] = all_expansions[synthon]
-
-                if output_dir:
-                    fname = nameA + '_' + nameB + '.json'
-                    fname = os.path.join(output_dir, fname)
-                    with open(fname, 'w') as f:
-                        json.dump(dict_to_save, f)
+        Parallel(n_jobs=cpus, backend='multiprocessing')(delayed(self._expand_fragmentA)(nameA, pair_dict, target, output_dir, working_dir) for nameA in pair_dict)
 
 
 def add_required_synthons(labels:set, synthon:str):
