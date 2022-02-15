@@ -24,9 +24,28 @@ class TestFindMerges(unittest.TestCase):
         smi = Chem.MolToSmiles(Chem.MolFromSmiles("CC=1C=CC(CS(=O)(=O)N)=CC1F"))
         smi2 = Chem.MolToSmiles(Chem.MolFromSmiles("CS(=O)(=O)NCCC=1C=CC=CC1"))
         results = merger.get_expansions([smi, smi2], ["x0034_0B", "x0176_0B"], "nsp13", None)
+        print(results)
         dict_len = 2
         self.assertEqual(dict_len, len(results))
+
+## new code tests ###
+
+    def test_get_unique_synthons(self):
+        nameA = 'x0176_0B'
+        nameBs = ['x0034_0B', 'x0183_0B', 'x0438_0B']
+        target = 'nsp13'
+        unique_synthons, synthon_dict = merger.get_unique_synthons(nameA, nameBs, target)
+        self.assertEqual(19, len(unique_synthons))
+        self.assertEqual(3, len(synthon_dict))
+        self.assertEqual(10, len(synthon_dict['x0034_0B']))
+
+    def test_expand_fragmentA(self):
+        name_pairs = [["x0034_0B", "x0176_0B"]]
+        target = 'nsp13'
+        output_dir = 'tests/test_output'
+        merger.expand_fragmentA(name_pairs, target, output_dir)
 
 
 if __name__ == '__main__':
     unittest.main()
+

@@ -76,7 +76,7 @@ def get_smiles(target, fragment, fragalysis_dir=config_merge.FRAGALYSIS_DATA_DIR
     return smiles
 
 
-def get_mol(target, fragment, fragalysis_dir=config_merge.FRAGALYSIS_DATA_DIR, return_mol=False):
+def get_mol(target, fragment, return_mol=False, fragalysis_dir=config_merge.FRAGALYSIS_DATA_DIR):
     """
     Function to get the mol for each fragment.
     File paths are like this: TARGET/aligned/TARGET-FRAGMENT_CHAIN
@@ -86,6 +86,8 @@ def get_mol(target, fragment, fragalysis_dir=config_merge.FRAGALYSIS_DATA_DIR, r
     :type target: string
     :param fragment: the fragment i.d., e.g. 'x0107'
     :type fragment: string
+    :param return_mol: whether to return RDKit molecule (True) or path (False)
+    :type return_mol: bool
     :param fragalysis_dir: the directory containing fragalysis data; within should be target folder, e.g. 'Mpro'
     :type fragalysis_dir: string
 
@@ -274,6 +276,20 @@ def check_fragment_pairs(fragment_pairs, name_pairs, target, max_dist=config_mer
         json.dump(filtered_name_pairs, f)
 
     return filtered_fragment_pairs, filtered_name_pairs
+
+
+def get_pair_dict(fragment_pairs):
+    """
+    Create dictionary with fragment A as key and all the fragment Bs used for expansion as the vals (in list).
+    """
+    pair_dict = {}
+    for pair in fragment_pairs:
+        fA, fB = pair[0], pair[1]
+        if fA in pair_dict:
+            pair_dict[fA].append(fB)
+        else:
+            pair_dict[fA] = [fB]
+    return pair_dict
 
 
 def check_merges_run(smiles_pairs, name_pairs, output_dir):
