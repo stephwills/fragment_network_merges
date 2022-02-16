@@ -248,8 +248,8 @@ def check_fragment_pairs(fragment_pairs, name_pairs, target, max_dist=config_mer
 
     # filter the fragment pairs by distance between them
     for fragment_pair, name_pair in zip(fragment_pairs, name_pairs):
-        fragmentA = get_mol(target, name_pair[0])
-        fragmentB = get_mol(target, name_pair[1])
+        fragmentA = get_mol(target, name_pair[0], True)
+        fragmentB = get_mol(target, name_pair[1], True)
 
         # if distance between fragments is >max_dist, remove this pair
         distance = get_distance_between_fragments(fragmentA, fragmentB)
@@ -297,19 +297,21 @@ def check_merges_run(smiles_pairs, name_pairs, output_dir):
     Checks if a json file already exists in the output directory
     for the file (avoid re-running queries).
     """
-    if not os.path.exists(output_dir):
-        os.mkdir(output_dir)
+    if output_dir:
+        if not os.path.exists(output_dir):
+            os.mkdir(output_dir)
 
     already_run = []  # record pairs already run
     for i, pair in enumerate(name_pairs):
         merge = pair[0] + '_' + pair[1]
-        filename = merge + '.json'
-        filepath = os.path.join(output_dir, filename)
-        if os.path.isfile(filepath):  # if file exists for merge pair then remove from list
-            smiles_pairs.pop(i)
-            name_pairs.pop(i)
-            already_run.append(merge)
-            print('The following merges have already been run', already_run)
-            print(f'{len(name_pairs)} merge pairs remaining')
+        if output_dir:
+            filename = merge + '.json'
+            filepath = os.path.join(output_dir, filename)
+            if os.path.isfile(filepath):  # if file exists for merge pair then remove from list
+                smiles_pairs.pop(i)
+                name_pairs.pop(i)
+                already_run.append(merge)
+                print('The following merges have already been run', already_run)
+                print(f'{len(name_pairs)} merge pairs remaining')
 
         return smiles_pairs, name_pairs

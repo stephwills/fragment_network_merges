@@ -429,7 +429,7 @@ class MergerFinder_generic(ABC):
                 with open(fname, 'w') as f:
                     json.dump(dict_to_save, f)
 
-    def expand_fragmentA(self, name_pairs, target, cpus=2, output_dir=None, working_dir=config_merge.WORKING_DIR):
+    def expand_fragmentA(self, name_pairs, target, cpus=config_merge.N_CPUS_FILTER_PAIR, output_dir=None, working_dir=config_merge.WORKING_DIR):
         """
         Function is given the whole list of pairs of enumerated fragments and generates all merges.
         Creates files in the output directory containing the expansions for each pair.

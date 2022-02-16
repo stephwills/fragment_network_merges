@@ -119,7 +119,6 @@ class Neo4jDriverWrapper(SearchSession_generic):
                                          "max_hac": max_hac,
                                          "synthon_no_xe": synthon_no_xe,
                                          "min_hac_fa": min_hac_fa})
-        print(query)
         expansions = set()
         for record in tx.run(query, smiles=smiles, synthon=synthon):
             node = record['c']
