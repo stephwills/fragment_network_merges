@@ -15,7 +15,9 @@ def preprocess_fragments(target, fragment_names, output_dir=None):
     fragmentNetworkSearcher = getFragmentNetworkSearcher()
 
     # get all the smiles of the fragments
+    print(fragment_names)
     fragment_smiles = [get_smiles(target, f) for f in fragment_names]
+    print(fragment_smiles)
 
     # check that the smiles exist as nodes in the network
     fragment_smiles, fragment_names = fragmentNetworkSearcher.filter_for_nodes(fragment_smiles, fragment_names)
@@ -50,8 +52,8 @@ def main():
     # run the database query; this will create json files containing the merges for each pair
     # in the output directory
     fragmentNetworkSearcher = getFragmentNetworkSearcher()
-    for smiles_pair, name_pair in zip(smiles_pairs, name_pairs): #TODO: We may perform several parallel queries, need to talk to Tim
-        fragmentNetworkSearcher.get_expansions(smiles_pair, name_pair, args.target, args.output_dir)
+    fragmentNetworkSearcher.expand_fragmentA(name_pairs, args.target, output_dir=args.output_dir)
+
 
 if __name__ == "__main__":
     main()
