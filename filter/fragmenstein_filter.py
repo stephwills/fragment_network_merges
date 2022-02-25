@@ -4,11 +4,12 @@ import pyrosetta
 import json
 import os
 import shutil
-import tempfile
+import time
+import multiprocessing as mp
+import multiprocessing.queues as mpq
 
 from rdkit import Chem
 from rdkit.Chem import rdmolfiles
-from joblib import Parallel, delayed
 from fragmenstein import Victor
 from typing import Tuple
 
@@ -19,9 +20,24 @@ from filter.generic_filter import Filter_generic
 class FragmensteinFilter(Filter_generic):
 
     def __init__(self, smis: list, synthons: list, fragmentA, fragmentB, proteinA, proteinB,
-                 merge=None, mols=None, names=None):
-        super().__init__(smis, synthons, fragmentA, fragmentB, proteinA, proteinB, merge, mols, names)
+                 merge, mols=None, names=None, work_pair_dir=None, out_pair_dir=None):
+        super().__init__(smis, synthons, fragmentA, fragmentB, proteinA, proteinB, merge, mols, names, work_pair_dir,
+                         out_pair_dir)
         self.results = None
+        self.timings = {}
+
+    def _copy_files(self, name, merge_dir):
+        """
+        If filter passes, move the working dir files to the output dir
+        """
+        output_subdir = os.path.join(self.out_pair_dir, name)
+        if not os.path.exists(output_subdir):
+            os.mkdir(output_subdir)
+        dir_files = os.listdir(merge_dir)
+        workdir_files = [os.path.join(merge_dir, f) for f in dir_files]
+        outputdir_files = [os.path.join(output_subdir, f) for f in dir_files]
+        for workdir_file, outputdir_file in zip(workdir_files, outputdir_files):
+            shutil.copy(workdir_file, outputdir_file)
 
     def _get_dict(self, json_file: str) -> dict:
         """
@@ -36,31 +52,32 @@ class FragmensteinFilter(Filter_generic):
             data = json.load(f)
         return data
 
-    def _create_directories(self, working_dir: str = config_filter.WORKING_DIR,
-                            output_dir: str = config_filter.OUTPUT_DIR):
+    def _check_merge_directory(self, name):
         """
-        Create subdirectories to store the temporary files and Fragmenstein results.
+        Create sub-directories for each merge to save the fragmenstein files to. These will all be saved in the
+        working directory and then moved later if filtering is successful (to avoid reading and writing to shared
+        disk).
 
-        :param output_dir: where to save final Fragmenstein files
-        :type output_dir: str
-        :param working_dir: where to save intermediate tempfiles
-        :type working_dir: str
+        :param name: unique name of the merge
+        :type name: str
+        :param pair_working_dir: where to save intermediate tempfiles
+        :type pair_working_dir: str
+
+        :return: merge_dir, bool (True if fragmenstein not run, False if already run)
+        :rtype: tuple
         """
-        # create output directory
-        if not os.path.exists(output_dir):
-            os.mkdir(output_dir)
-
-        # create tempfiles folder in working directory to save intermediate files
-        if not os.path.exists((os.path.join(working_dir, 'tempfiles'))):
-            os.mkdir(os.path.join(working_dir, 'tempfiles'))
-
-        # create Fragmenstein folder to save the important files we want to keep
-        if not os.path.exists(os.path.join(output_dir, 'fragmenstein')):
-            os.mkdir(os.path.join(output_dir, 'fragmenstein'))
+        merge_dir = os.path.join(self.work_pair_dir, name)
+        fname = f"{name}.minimised.json"
+        fname = os.path.join(merge_dir, fname)
+        print(fname)
+        if os.path.exists(fname):
+            return merge_dir, True
+        else:
+            return merge_dir, False
 
     def _get_name(self, name) -> str:
         """
-        Get the merge names used in the filepaths - Fragmenstein replaces the underscores with hyphens.
+        Get the merge names used in the file paths - Fragmenstein replaces the underscores with hyphens.
 
         :return: name
         :rtype: str
@@ -68,112 +85,93 @@ class FragmensteinFilter(Filter_generic):
         _name = name.replace('_', '-')
         return _name
 
-    def _move_file(self, name, last_dir, new_dir, ext):
-        # move the json file
-        new_file = name + ext
-        old_path = os.path.join(last_dir, name, new_file)
-        new_path = os.path.join(new_dir, 'fragmenstein', new_file)
-        shutil.move(old_path, new_path)
-        return new_path
-
-    def place_smiles(self, name, smiles, working_dir: str = config_filter.WORKING_DIR,
-                     output_dir: str = config_filter.OUTPUT_DIR, residue=config_filter.COVALENT_RESI):
-        """
-
-        Function places the merge in the protein using Fragmenstein. Minimization is performed
-        using PyRosetta. Creates an output folder containing .json file with metrics that
-        can be used for filtering.
-
-        :param name: name of the merge (to name the output subfolder/files)
-        :type name: str
-        :param smiles: smiles of the merge
-        :type smiles: str
-        :param working_dir: filepath of working directory
-        :type working_dir: str
-        :param output_dir: filepath of output directory
-        :type output_dir: str
-        :param residue: covalent residue for PyRosetta, e.g. 2B
-        :type residue: str
-        """
-        print(name)
-        # create temporary directory to write files to
-        temp_dir = tempfile.TemporaryDirectory(dir=f'{working_dir}/tempfiles/')
-
-        # run Fragmenstein
-        # initialise PyRosetta
-        pyrosetta.init(
-            extra_options='-no_optH false -mute all -ex1 -ex2 -ignore_unrecognized_res false -load_PDB_components false -ignore_waters false')
-
-        # get the fragments from the files
-        fragments_fnames = [self.fragmentA, self.fragmentB]
-        hits = [Chem.MolFromMolFile(frag) for frag in fragments_fnames]
-
-        # set the output directory
-        Victor.work_path = temp_dir.name
-
-        # set up Victor and place the smiles
-        v = Victor(hits=hits, pdb_filename=self.proteinA, covalent_resi=residue)
-        v.place(smiles=smiles, long_name=name)  # 'long_name' used to name the files
-
-        save_files = ['.minimised.json', '.minimised.mol', '.holo_minimised.pdb']
-        new_files = []
-        for f in save_files:
-            new_f = self._move_file(name, temp_dir.name, output_dir, f)
-            new_files.append(new_f)
-
-        # remove files from temporary directory
-        temp_dir.cleanup()
-
-        return new_files
-
-    def filter_smi(self, name: str, smi: str, comRMSD_threshold: float = config_filter.COM_RMSD) -> Tuple:
+    def filter_smi(self, queue, merge_name: str, smi: str, comRMSD_threshold: float=config_filter.COM_RMSD,
+                   residue=config_filter.COVALENT_RESI):
         """
         Function filters molecules for those where both fragments were considered in its placement,
         a negative ΔΔG and combined RMSD with the fragments of < 1.5A.
 
-        :param idx: number of SMILES for naming the file
-        :type idx: int
+        :param queue: multiprocessing queue to allow timeout
+        :type queue: multiprocessing queue
+        :param merge_name: name of the unique merge (e.g. x0107_0A_x0034_0A_24)
+        :type merge_name: str
         :param smi: merge SMILES string
         :type smi: str
         :param comRMSD_threshold: threshold for combined RMSD filter
         :type comRMSD_threshold: float
+        :param residue: covalent residue for PyRosetta, e.g. 2B
+        :type residue: str
 
         :return: returns 'pass' or 'fail'; molecule minimized by Fragmenstein
         :rtype: tuple
         """
-        merge_name = self._get_name(name)
-        print(merge_name)
-        new_files = self.place_smiles(merge_name, smi)
+        start = time.time()
 
-        # get json_file for filtering and mol_file to get mol
-        json_file = new_files[0]
-        mol_file = new_files[1]
-        holo_file = new_files[2]
-        minimised_mol = rdmolfiles.MolFromMolFile(mol_file)
+        name = self._get_name(merge_name)
+        # check if directory already exists within the working directory to write intermediate files to
+        merge_dir, already_run = self._check_merge_directory(name)
 
-        data = self._get_dict(json_file)  # load the dictionary from the json file
+        json_file = os.path.join(merge_dir, f"{name}.minimised.json")
 
-        # retrieve the energy of the bound and unbound molecules and the comRMSD
-        G_bound = data['Energy']['ligand_ref2015']['total_score']  # energy of bound molecule
-        G_unbound = data['Energy']['unbound_ref2015']['total_score']  # energy of unbound molecule
-        deltaG = G_bound - G_unbound  # calculate energy difference
-        comRMSD = data['mRMSD']  # RMSD between two fragments and merge
+        if not already_run:
+            # run Fragmenstein
+            # initialise PyRosetta
+            pyrosetta.init(extra_options="""-no_optH false -mute all -ex1 -ex2 -ignore_unrecognized_res false
+                                            -load_PDB_components false -ignore_waters false""")
 
-        # get number of fragments used for placement of SMILES
-        regarded = 0
-        for rmsd in data['RMSDs']:
-            if rmsd:
-                regarded += 1
+            # get the fragments from the files
+            fragments_fnames = [self.fragmentA, self.fragmentB]
+            hits = [Chem.MolFromMolFile(frag) for frag in fragments_fnames]
 
-        # only keep molecules where both fragments used in placement, -ΔΔG and comRMSD < threshold
-        if (regarded == 2) & (deltaG < 0) & (comRMSD <= comRMSD_threshold):
-            result = True
+            # set the output directory
+            Victor.work_path = self.work_pair_dir
+
+            # set up Victor and place the smiles
+            v = Victor(hits=hits, pdb_filename=self.proteinA, covalent_resi=residue)
+            v.place(smiles=smi, long_name=name)  # 'long_name' used to name the files
+
+        data = self._get_dict(json_file)
+
+        if data:
+            # retrieve the energy of the bound and unbound molecules and the comRMSD
+            G_bound = data['Energy']['ligand_ref2015']['total_score']  # energy of bound molecule
+            G_unbound = data['Energy']['unbound_ref2015']['total_score']  # energy of unbound molecule
+            deltaG = G_bound - G_unbound  # calculate energy difference
+            comRMSD = data['mRMSD']  # RMSD between two fragments and merge
+
+            # get number of fragments used for placement of SMILES
+            regarded = 0
+            for rmsd in data['RMSDs']:
+                if rmsd:
+                    regarded += 1
+
+            # get other files
+            mol_file = os.path.join(merge_dir, f"{name}.minimised.mol")
+            holo_file = os.path.join(merge_dir, f"{name}.holo_minimised.pdb")
+            minimised_mol = rdmolfiles.MolFromMolFile(mol_file)
+
+            # only keep molecules where both fragments used in placement, -ΔΔG and comRMSD < threshold
+            if (regarded == 2) & (deltaG < 0) & (comRMSD <= comRMSD_threshold):
+                result = True
+                # move the fragmenstein files to the output directory
+                self._copy_files(name, merge_dir)
+
+            else:
+                result = False
+                # if filter failed, remove all those files from the working directory folder
+                shutil.rmtree(merge_dir)
+
+            # record timings for fragmenstein
+            end = time.time()
+            total = round(end-start, 2)
+            self.timings[name] = total
+            with open(os.path.join(self.work_pair_dir, f"{self.merge}_fragmenstein_timings.json"), "w") as f:
+                json.dump(self.timings, f)
+
+            queue.put([result, minimised_mol, mol_file, holo_file])
+
         else:
-            result = False
-            for f in new_files:
-                os.remove(f)
-
-        return result, minimised_mol, mol_file, holo_file
+            queue.put([False, None, None, None])
 
     def filter_all(self, cpus: int = config_filter.N_CPUS_FILTER_PAIR) -> Tuple[list, list]:
         """
@@ -185,10 +183,25 @@ class FragmensteinFilter(Filter_generic):
         :return: list of results (True or False); list of mols (RDKit molecules)
         :rtype: tuple
         """
-        self._create_directories()
-        print('name:', self.names)
-        res = Parallel(n_jobs=cpus, backend='multiprocessing')(delayed(self.filter_smi)(name, smi) for name, smi in
-                                                               zip(self.names, self.smis))
+        # create multiprocessing Process to implement timeout
+
+        queue = mp.Queue()
+        processes = [mp.Process(target=self.filter_smi, args=(queue, name, smi)) for name, smi in zip(self.names, self.smis)]
+
+        res = []
+        for p in processes:
+            p.start()
+
+        for p in processes:
+            p.join()
+
+        for p in processes:
+            try:
+                r = queue.get(timeout=600)  # timeout set to 10 minutes
+                res.append(r)
+            except mpq.Empty:
+                p.terminate()
+
         self.results = [r[0] for r in res]
         self.mols = [r[1] for r in res]
         self.mol_files = [r[2] for r in res]
