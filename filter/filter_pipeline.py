@@ -324,9 +324,6 @@ def main():
     fB = args.fragmentB
     merge = fA + "-" + fB
     merge = merge.replace("_", "-")
-    print(merge)
-    print(args.working_dir)
-    print(args.output_dir)
     create_directories(args.target, merge, args.working_dir, args.output_dir)
 
     # open json file containing merges

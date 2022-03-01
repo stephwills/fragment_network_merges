@@ -296,7 +296,7 @@ class EmbeddingFilter(Filter_generic):
                 except ValueError:
                     pass
 
-        print(f"{len(embedded_mols)}/{n_embeddings} embeddings were successful")
+        # print(f"{len(embedded_mols)}/{n_embeddings} embeddings were successful")
 
         return embedded_mols
 
