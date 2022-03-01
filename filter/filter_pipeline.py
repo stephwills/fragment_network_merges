@@ -30,12 +30,16 @@ def create_directories(
     """
     if not os.path.exists(os.path.join(working_dir, "tempfiles")):
         os.mkdir(os.path.join(working_dir, "tempfiles"))
+
     if not os.path.exists(os.path.join(working_dir, "tempfiles", target)):
         os.mkdir(os.path.join(working_dir, "tempfiles", target))
+
     if not os.path.exists(os.path.join(working_dir, "tempfiles", target, pair)):
         os.mkdir(os.path.join(working_dir, "tempfiles", target, pair))
+
     if not os.path.exists(os.path.join(output_dir, target)):
         os.mkdir(os.path.join(output_dir, target))
+
     if not os.path.exists(os.path.join(output_dir, target, pair)):
         os.mkdir(os.path.join(output_dir, target, pair))
 
@@ -100,18 +104,19 @@ class FilterPipeline:
         """
         Check if any of the SMILES have already been run - this happens.
         """
-        self.failures = load_json(self.failed_fpath)
-        failed_merges = list(self.failures.keys())
+        if os.path.exists(self.failed_fpath):
+            self.failures = load_json(self.failed_fpath)
+            failed_merges = list(self.failures.keys())
 
-        for i, name in reversed(list(enumerate(self.names))):
-            if name in failed_merges:
-                self.smis.pop(i)
-                self.names.pop(i)
-                self.synthons.pop(i)
+            for i, name in reversed(list(enumerate(self.names))):
+                if name in failed_merges:
+                    self.smis.pop(i)
+                    self.names.pop(i)
+                    self.synthons.pop(i)
 
-        print(
-            f"{len(failed_merges)} merges have already been filtered. {len(self.smis)} merges remaining."
-        )
+            print(
+                f"{len(failed_merges)} merges have already been filtered. {len(self.smis)} merges remaining."
+            )
 
     def _remove_failed(self, filter_name: str, working_dir=config_filter.WORKING_DIR):
         """
@@ -177,7 +182,7 @@ class FilterPipeline:
         for f in files:
             if os.path.isfile(f):
                 new_fpath = os.path.join(self.pair_output_dir, os.path.basename(f))
-                shutil.move(f, new_fpath)
+                shutil.copy(f, new_fpath)
 
     def execute_pipeline(self):
         """
@@ -269,7 +274,7 @@ class FilterPipeline:
             for i, (name, smi, synthon) in enumerate(
                 zip(self.names, self.smis, self.synthons)
             ):
-                inner_dict = {"smiles": smi, "synthon": synthon}
+                inner_dict = {"pair": self.merge, "smiles": smi, "synthon": synthon}
                 for score in self.score_dict:
                     inner_dict[score] = self.score_dict[score][i]
                 results_dict[name] = inner_dict
@@ -279,7 +284,7 @@ class FilterPipeline:
             for i, (name, smi, synthon) in enumerate(
                 zip(self.names, self.smis, self.synthons)
             ):
-                inner_dict = {"smiles": smi, "synthon": synthon}
+                inner_dict = {"pair": self.merge, "smiles": smi, "synthon": synthon}
                 results_dict[name] = inner_dict
 
         return results_dict, self.failures
@@ -319,7 +324,10 @@ def main():
     fB = args.fragmentB
     merge = fA + "-" + fB
     merge = merge.replace("_", "-")
-    create_directories(merge, args.working_dir, args.output_dir)
+    print(merge)
+    print(args.working_dir)
+    print(args.output_dir)
+    create_directories(args.target, merge, args.working_dir, args.output_dir)
 
     # open json file containing merges
     merges_dict = load_json(args.merge_file)
@@ -360,20 +368,14 @@ def main():
     pipeline.check_run()
     pipeline.execute_pipeline()
     print(f"{len(pipeline.smis)} mols after filtering.")
-    results, failures = pipeline.return_results()
-    #
-    # # save in json files
-    # filtered_fname = merge + '_filtered.json'
-    # filtered_fpath = os.path.join(args.output_dir, filtered_fname)
-    #
-    # failed_fname = merge + '_failures.json'
-    # failed_fpath = os.path.join(args.output_dir, failed_fname)
-    #
-    # with open(filtered_fpath, 'w') as f:
-    #     json.dump(results, f)
-    #
-    # with open(failed_fpath, 'w') as f:
-    #     json.dump(failures, f)
+    results, _ = pipeline.return_results()
+
+    # save in json files
+    filtered_fname = merge + '_filtered.json'
+    filtered_fpath = os.path.join(args.output_dir, args.target, merge, filtered_fname)
+
+    with open(filtered_fpath, 'w') as f:
+        json.dump(results, f)
 
 
 if __name__ == "__main__":
