@@ -5,14 +5,16 @@ Uses code from https://github.com/tdudgeon/fragment-network-merges.
 
 import getpass
 
-from neo4j import GraphDatabase
-
 from merge.config_merge import config_merge
-from merge.find_merges_generic import MergerFinder_generic, add_required_synthons, SearchSession_generic
+from merge.find_merges_generic import (
+    MergerFinder_generic,
+    SearchSession_generic,
+    add_required_synthons,
+)
+from neo4j import GraphDatabase
 
 
 class Neo4jDriverWrapper(SearchSession_generic):
-
     def __init__(self, session):
         self.session = session
 
@@ -40,8 +42,8 @@ class Neo4jDriverWrapper(SearchSession_generic):
         :return: molecule node
         :rtype: node
         """
-        for record in tx.run('MATCH (m:F2 {smiles: $smiles}) RETURN m', smiles=smiles):
-            node = record['m']
+        for record in tx.run("MATCH (m:F2 {smiles: $smiles}) RETURN m", smiles=smiles):
+            node = record["m"]
             return node
 
     def find_molecule_node(self, fragment: str):
@@ -64,12 +66,13 @@ class Neo4jDriverWrapper(SearchSession_generic):
         :rtype: list
         """
         labels = set()
-        for record in tx.run('MATCH (fa:F2 {smiles: $smiles})-[e:FRAG*]->(f:F2) RETURN e',
-                             smiles=smiles):
-            edges = record['e']
+        for record in tx.run(
+            "MATCH (fa:F2 {smiles: $smiles})-[e:FRAG*]->(f:F2) RETURN e", smiles=smiles
+        ):
+            edges = record["e"]
             for edge in edges:
-                s = edge['label']
-                tokens = s.split('|')
+                s = edge["label"]
+                tokens = s.split("|")
                 add_required_synthons(labels, tokens[1])
                 add_required_synthons(labels, tokens[4])
         return list(labels)
@@ -80,9 +83,16 @@ class Neo4jDriverWrapper(SearchSession_generic):
         """
         return self.session.read_transaction(self._find_synthons, fragment)
 
-    def _find_expansions(self, tx, smiles: str, synthon: str, number_hops: int, min_hac: int, max_hac: int,
-                         min_hac_fa: int) \
-            -> set:
+    def _find_expansions(
+        self,
+        tx,
+        smiles: str,
+        synthon: str,
+        number_hops: int,
+        min_hac: int,
+        max_hac: int,
+        min_hac_fa: int,
+    ) -> set:
         """
         Expand fragment 'A' using the synthons generated from fragment 'B' using a neo4j
         query. Query limited to compounds available from vendors a specified number of hops away,
@@ -104,39 +114,56 @@ class Neo4jDriverWrapper(SearchSession_generic):
         :return: expansions
         :rtype: set
         """
-        synthon_no_xe = synthon.replace('([Xe])', '')
-        synthon_no_xe = synthon_no_xe.replace('[Xe]', '')
+        synthon_no_xe = synthon.replace("([Xe])", "")
+        synthon_no_xe = synthon_no_xe.replace("[Xe]", "")
 
-        query = ("MATCH (fa:F2 {smiles: $smiles})"
-                 "-[:FRAG*0..%(number_hops)d]-(fb:F2)"
-                 "<-[e:FRAG]-(c:Mol) WHERE"
-                 " NOT fb.smiles = '%(synthon_no_xe)s'"  # check node before expansion is not equiv to synthon
-                 " AND fb.hac > %(min_hac_fa)d"  # check num heavy atoms of node before expansion > 5
-                 " AND %(min_hac)d <= c.hac <= %(max_hac)d AND"  # check heavy atoms of final mol
-                 " (split(e.label, '|')[1] = $synthon OR split(e.label, '|')[4] = $synthon)"  # expanded with synthon
-                 " RETURN DISTINCT c" % {"number_hops": number_hops,
-                                         "min_hac": min_hac,
-                                         "max_hac": max_hac,
-                                         "synthon_no_xe": synthon_no_xe,
-                                         "min_hac_fa": min_hac_fa})
+        query = (
+            "MATCH (fa:F2 {smiles: $smiles})"
+            "-[:FRAG*0..%(number_hops)d]-(fb:F2)"
+            "<-[e:FRAG]-(c:Mol) WHERE"
+            " NOT fb.smiles = '%(synthon_no_xe)s'"  # check node before expansion is not equiv to synthon
+            " AND fb.hac >= %(min_hac_fa)d"  # check num heavy atoms of node before expansion > 5
+            " AND %(min_hac)d <= c.hac <= %(max_hac)d AND"  # check heavy atoms of final mol
+            " (split(e.label, '|')[1] = $synthon OR split(e.label, '|')[4] = $synthon)"  # expanded with synthon
+            " RETURN DISTINCT c"
+            % {
+                "number_hops": number_hops,
+                "min_hac": min_hac,
+                "max_hac": max_hac,
+                "synthon_no_xe": synthon_no_xe,
+                "min_hac_fa": min_hac_fa,
+            }
+        )
         expansions = set()
         for record in tx.run(query, smiles=smiles, synthon=synthon):
-            node = record['c']
-            expansions.add(node['smiles'])
+            node = record["c"]
+            expansions.add(node["smiles"])
         return expansions
 
-    def find_expansions(self, smiles: str, synthon: str, number_hops: int = config_merge.NUM_HOPS,
-                        min_hac: int = config_merge.MIN_HAC, max_hac: int = config_merge.MAX_HAC,
-                        min_hac_fa: int = config_merge.MIN_HAC_FA) -> set:
+    def find_expansions(
+        self,
+        smiles: str,
+        synthon: str,
+        number_hops: int = config_merge.NUM_HOPS,
+        min_hac: int = config_merge.MIN_HAC,
+        max_hac: int = config_merge.MAX_HAC,
+        min_hac_fa: int = config_merge.MIN_HAC_FA,
+    ) -> set:
         """
         Implements self.find_expansions
         """
-        return self.session.read_transaction(self._find_expansions, smiles, synthon, number_hops, min_hac, max_hac,
-                                             min_hac_fa)
+        return self.session.read_transaction(
+            self._find_expansions,
+            smiles,
+            synthon,
+            number_hops,
+            min_hac,
+            max_hac,
+            min_hac_fa,
+        )
 
 
 class MergerFinder_neo4j(MergerFinder_generic):
-
     def __init__(self, **kwargs):
         self._driver = None
 
@@ -147,8 +174,9 @@ class MergerFinder_neo4j(MergerFinder_generic):
                 password = getpass.getpass()
             else:
                 password = config_merge.NEO4J_PASS
-            self._driver = GraphDatabase.driver("bolt://localhost:7687",
-                                                auth=(config_merge.NEO4J_USER, password))
+            self._driver = GraphDatabase.driver(
+                "bolt://localhost:7687", auth=(config_merge.NEO4J_USER, password)
+            )
         return self._driver
 
     @driver.deleter

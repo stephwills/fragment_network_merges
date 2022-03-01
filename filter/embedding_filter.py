@@ -8,16 +8,79 @@ from joblib import Parallel, delayed
 from rdkit import Chem
 from rdkit.Chem.AllChem import *
 from rdkit import RDLogger
-from rdkit.Chem import AllChem, rdFMCS, rdForceFieldHelpers
+from rdkit.Chem import AllChem, rdFMCS, rdForceFieldHelpers, Mol
 from typing import Tuple
 
 from filter.config_filter import config_filter
 from filter.generic_filter import Filter_generic
 
-RDLogger.DisableLog('rdApp.*')
+RDLogger.DisableLog("rdApp.*")
 
 
-def add_coordinates(fragment, substructure, atom_matches):
+def ConstrainedEmbedMatches(
+    mol,
+    core,
+    match,
+    useTethers=True,
+    coreConfId=-1,
+    randomseed=2342,
+    getForceField=UFFGetMoleculeForceField,
+    **kwargs,
+):
+    """
+    Adapted from original RDKit function rdkit.Chem.AllChem.ConstrainedEmbed to iterate through multiple substructure
+    matches
+    """
+    coordMap = {}
+    coreConf = core.GetConformer(coreConfId)
+    for i, idxI in enumerate(match):
+        corePtI = coreConf.GetAtomPosition(i)
+        coordMap[idxI] = corePtI
+
+    ci = EmbedMolecule(mol, coordMap=coordMap, randomSeed=randomseed, **kwargs)
+    if ci < 0:
+        raise ValueError("Could not embed molecule.")
+
+    algMap = [(j, i) for i, j in enumerate(match)]
+
+    if not useTethers:
+        # clean up the conformation
+        ff = getForceField(mol, confId=0)
+        for i, idxI in enumerate(match):
+            for j in range(i + 1, len(match)):
+                idxJ = match[j]
+                d = coordMap[idxI].Distance(coordMap[idxJ])
+                ff.AddDistanceConstraint(idxI, idxJ, d, d, 100.0)
+        ff.Initialize()
+        n = 4
+        more = ff.Minimize()
+        while more and n:
+            more = ff.Minimize()
+            n -= 1
+        # rotate the embedded conformation onto the core:
+        rms = AlignMol(mol, core, atomMap=algMap)
+    else:
+        # rotate the embedded conformation onto the core:
+        rms = AlignMol(mol, core, atomMap=algMap)
+        ff = getForceField(mol, confId=0)
+        conf = core.GetConformer()
+        for i in range(core.GetNumAtoms()):
+            p = conf.GetAtomPosition(i)
+            pIdx = ff.AddExtraPoint(p.x, p.y, p.z, fixed=True) - 1
+            ff.AddDistanceConstraint(pIdx, match[i], 0, 0, 100.0)
+        ff.Initialize()
+        n = 4
+        more = ff.Minimize(energyTol=1e-4, forceTol=1e-3)
+        while more and n:
+            more = ff.Minimize(energyTol=1e-4, forceTol=1e-3)
+            n -= 1
+        # realign
+        rms = AlignMol(mol, core, atomMap=algMap)
+    mol.SetProp("EmbedRMS", str(rms))
+    return mol
+
+
+def add_coordinates(fragment: Mol, substructure: Mol, atom_matches: Tuple) -> Mol:
     """
     Function to add 3D coordinates to a substructure (e.g. MCS) from the corresponding
     atoms from the original fragment.
@@ -34,117 +97,25 @@ def add_coordinates(fragment, substructure, atom_matches):
     :rtype: RDKit rwmol
     """
     sub_mol = Chem.RWMol(substructure)  # create editable copy of the substructure
-    sub_conf = Chem.Conformer(sub_mol.GetNumAtoms())  # create a conformer of the substructure
-    sub_matches = sub_mol.GetSubstructMatch(substructure)  # get matches so atoms in the same order
+    sub_conf = Chem.Conformer(
+        sub_mol.GetNumAtoms()
+    )  # create a conformer of the substructure
+    sub_matches = sub_mol.GetSubstructMatch(
+        substructure
+    )  # get matches so atoms in the same order
 
     ref_conf = fragment.GetConformer()  # get the conformation of the actual fragment
 
-    for i, match in enumerate(sub_matches):  # set atom position using matching atom from fragment
+    for i, match in enumerate(
+        sub_matches
+    ):  # set atom position using matching atom from fragment
         sub_conf.SetAtomPosition(match, ref_conf.GetAtomPosition(atom_matches[i]))
 
     sub_mol.AddConformer(sub_conf)  # add the conformation to the substructure
     return sub_mol
 
 
-def ConstrainedEmbedMatches(mol, core, match, useTethers=True, coreConfId=-1, randomseed=2342,
-                     getForceField=UFFGetMoleculeForceField, **kwargs):
-  """ generates an embedding of a molecule where part of the molecule
-    is constrained to have particular coordinates
-
-    Arguments
-      - mol: the molecule to embed
-      - core: the molecule to use as a source of constraints
-      - useTethers: (optional) if True, the final conformation will be
-          optimized subject to a series of extra forces that pull the
-          matching atoms to the positions of the core atoms. Otherwise
-          simple distance constraints based on the core atoms will be
-          used in the optimization.
-      - coreConfId: (optional) id of the core conformation to use
-      - randomSeed: (optional) seed for the random number generator
-
-
-    An example, start by generating a template with a 3D structure:
-
-    >>> from rdkit.Chem import AllChem
-    >>> template = AllChem.MolFromSmiles("c1nn(Cc2ccccc2)cc1")
-    >>> AllChem.EmbedMolecule(template)
-    0
-    >>> AllChem.UFFOptimizeMolecule(template)
-    0
-
-    Here's a molecule:
-
-    >>> mol = AllChem.MolFromSmiles("c1nn(Cc2ccccc2)cc1-c3ccccc3")
-
-    Now do the constrained embedding
-    >>> mol = AllChem.ConstrainedEmbed(mol, template)
-
-    Demonstrate that the positions are nearly the same with template:
-
-    >>> import math
-    >>> molp = mol.GetConformer().GetAtomPosition(0)
-    >>> templatep = template.GetConformer().GetAtomPosition(0)
-    >>> all(math.isclose(v, 0.0, abs_tol=0.01) for v in molp-templatep)
-    True
-    >>> molp = mol.GetConformer().GetAtomPosition(1)
-    >>> templatep = template.GetConformer().GetAtomPosition(1)
-    >>> all(math.isclose(v, 0.0, abs_tol=0.01) for v in molp-templatep)
-    True
-
-    """
-  # match = mol.GetSubstructMatch(core)
-  # if not match:
-  #   raise ValueError("molecule doesn't match the core")
-  coordMap = {}
-  coreConf = core.GetConformer(coreConfId)
-  for i, idxI in enumerate(match):
-    corePtI = coreConf.GetAtomPosition(i)
-    coordMap[idxI] = corePtI
-
-  ci = EmbedMolecule(mol, coordMap=coordMap, randomSeed=randomseed, **kwargs)
-  if ci < 0:
-    raise ValueError('Could not embed molecule.')
-
-  algMap = [(j, i) for i, j in enumerate(match)]
-
-  if not useTethers:
-    # clean up the conformation
-    ff = getForceField(mol, confId=0)
-    for i, idxI in enumerate(match):
-      for j in range(i + 1, len(match)):
-        idxJ = match[j]
-        d = coordMap[idxI].Distance(coordMap[idxJ])
-        ff.AddDistanceConstraint(idxI, idxJ, d, d, 100.)
-    ff.Initialize()
-    n = 4
-    more = ff.Minimize()
-    while more and n:
-      more = ff.Minimize()
-      n -= 1
-    # rotate the embedded conformation onto the core:
-    rms = AlignMol(mol, core, atomMap=algMap)
-  else:
-    # rotate the embedded conformation onto the core:
-    rms = AlignMol(mol, core, atomMap=algMap)
-    ff = getForceField(mol, confId=0)
-    conf = core.GetConformer()
-    for i in range(core.GetNumAtoms()):
-      p = conf.GetAtomPosition(i)
-      pIdx = ff.AddExtraPoint(p.x, p.y, p.z, fixed=True) - 1
-      ff.AddDistanceConstraint(pIdx, match[i], 0, 0, 100.)
-    ff.Initialize()
-    n = 4
-    more = ff.Minimize(energyTol=1e-4, forceTol=1e-3)
-    while more and n:
-      more = ff.Minimize(energyTol=1e-4, forceTol=1e-3)
-      n -= 1
-    # realign
-    rms = AlignMol(mol, core, atomMap=algMap)
-  mol.SetProp('EmbedRMS', str(rms))
-  return mol
-
-
-def remove_xe(synthon):
+def remove_xe(synthon: Mol) -> Mol:
     """
     Function to remove the xenon atom from the synthon.
 
@@ -154,19 +125,43 @@ def remove_xe(synthon):
     :return: synthon with xenon removed
     :rtype: RDKit molecule
     """
-    xe = Chem.MolFromSmiles('[Xe]')
+    xe = Chem.MolFromSmiles("[Xe]")
     synth = AllChem.DeleteSubstructs(synthon, xe)
     return synth
 
 
 class EmbeddingFilter(Filter_generic):
-
-    def __init__(self, smis: list, synthons: list, fragmentA, fragmentB, proteinA=None, proteinB=None, merge=None,
-                 mols=None, names=None):
-        super().__init__(smis, synthons, fragmentA, fragmentB, proteinA, proteinB, merge, mols, names)
+    def __init__(
+        self,
+        smis: list,
+        synthons: list,
+        fragmentA,
+        fragmentB,
+        proteinA=None,
+        proteinB=None,
+        merge=None,
+        mols=None,
+        names=None,
+        pair_working_dir=None,
+        pair_output_dir=None,
+    ):
+        super().__init__(
+            smis,
+            synthons,
+            fragmentA,
+            fragmentB,
+            proteinA,
+            proteinB,
+            merge,
+            mols,
+            names,
+            pair_working_dir,
+            pair_output_dir,
+        )
         self.results = None
 
-    def _get_mcs(self, full_mol, fragment):
+    @staticmethod
+    def _get_mcs(full_mol: Mol, fragment: Mol) -> Mol:
         """
         Function to return the MCS between a mol and a fragment.
 
@@ -183,7 +178,8 @@ class EmbeddingFilter(Filter_generic):
         Chem.SanitizeMol(mcs_mol)
         return mcs_mol
 
-    def get_distance(self, coord1: np.ndarray, coord2: np.ndarray) -> float:
+    @staticmethod
+    def get_distance(coord1: np.ndarray, coord2: np.ndarray) -> float:
         """
         Function calculates the distance between two atoms in 3D space.
         Relevant for when two fragments are overlapping.
@@ -199,7 +195,7 @@ class EmbeddingFilter(Filter_generic):
         sq = (coord1 - coord2) ** 2
         return np.sqrt(np.sum(sq))
 
-    def _check_overlap(self, molA, molB):
+    def _check_overlap(self, molA: Mol, molB: Mol) -> Tuple[Mol, Mol]:
         """
         Function checks if parts of two molecules overlap. If atoms overlap, then they are removed
         from one of the molecules.
@@ -233,7 +229,7 @@ class EmbeddingFilter(Filter_generic):
                 A.RemoveAtom(clash)  # remove atoms from one fragment
         return A, B
 
-    def embedding(self, fragA, fragB, merge_mol, synth):
+    def embedding(self, fragA: Mol, fragB: Mol, merge_mol: Mol, synth: Mol) -> list:
         """
         Function to embed the full molecule, constraining the atoms that came from each fragment.
         The atoms that came from each fragment are retreived, and the 3D coordinates
@@ -248,28 +244,40 @@ class EmbeddingFilter(Filter_generic):
         :param synth: synthon from fragment B used for expansion
         :type synth: RDKit molecule
 
-        :return: embedded molecule (if embedding was successful)
-        :rtype: RDKit molecule
+        :return: list of embedded molecules (if embedding was successful, otherwise empty)
+        :rtype: list
         """
-        ### FRAGMENT A ###
-        mcsA = self._get_mcs(merge_mol, fragA)  # identify the atoms that came from fragment A
-        mcsA_matches = fragA.GetSubstructMatches(mcsA)  # get all possible matches with fragment A
-        mcsA_mols = [add_coordinates(fragA, mcsA, matches) for matches in mcsA_matches]  # for each, add coordinates
+        # substructure match for fragment A
+        mcsA = self._get_mcs(
+            merge_mol, fragA
+        )  # identify the atoms that came from fragment A
+        mcsA_matches = fragA.GetSubstructMatches(
+            mcsA
+        )  # get all possible matches with fragment A
+        mcsA_mols = [
+            add_coordinates(fragA, mcsA, matches) for matches in mcsA_matches
+        ]  # for each, add coordinates
 
-        ### FRAGMENT B ###
+        # substructure match for fragment B
         synthB = remove_xe(synth)  # remove the xenon from the synthon
         synthB_matches = fragB.GetSubstructMatches(synthB)
-        synthB_mols = [add_coordinates(fragB, synthB, matches) for matches in synthB_matches]
+        synthB_mols = [
+            add_coordinates(fragB, synthB, matches) for matches in synthB_matches
+        ]
 
-        ### GET ALL POSSIBLE REF COORDINATES ###
+        # get all possible ref coordinates
         ref_mols = []  # store ref molecules with different coordinates
         for _mcsA_mol in mcsA_mols:
             for _synthB_mol in synthB_mols:
-                mcsA_mol, synthB_mol = self._check_overlap(_mcsA_mol, _synthB_mol)  # check if atoms overlap
-                ref_mol = Chem.CombineMols(mcsA_mol, synthB_mol)  # combine substructures to get ref molecule
+                mcsA_mol, synthB_mol = self._check_overlap(
+                    _mcsA_mol, _synthB_mol
+                )  # check if atoms overlap
+                ref_mol = Chem.CombineMols(
+                    mcsA_mol, synthB_mol
+                )  # combine substructures to get ref molecule
                 ref_mols.append(ref_mol)
 
-        ### GET ALL POSSIBLE SUBSTRUCTURE MATCHES WITH MERGE - EMBED WITH EACH SET OF COORDINATES ###
+        # Get substructure matches for merge and embed with all sets of coordinates
         merge_matches = merge_mol.GetSubstructMatches(ref_mols[0])
         embedded_mols = []
         n_embeddings = 0
@@ -279,7 +287,9 @@ class EmbeddingFilter(Filter_generic):
                 merge = Chem.RWMol(merge_mol)
                 # merge = Chem.AddHs(merge)
                 try:
-                    embedded_mol = ConstrainedEmbedMatches(merge, ref_mol, matches, randomseed=42)
+                    embedded_mol = ConstrainedEmbedMatches(
+                        merge, ref_mol, matches, randomseed=42
+                    )
                     rdForceFieldHelpers.MMFFOptimizeMolecule(embedded_mol)
                     # embedded_mol = Chem.RemoveHs(embedded_mol)
                     embedded_mols.append(embedded_mol)
@@ -290,7 +300,8 @@ class EmbeddingFilter(Filter_generic):
 
         return embedded_mols
 
-    def calc_energy(self, mol) -> float:
+    @staticmethod
+    def calc_energy(mol: Mol) -> float:
         """
         Function to calculate the energy of the embedded molecule.
 
@@ -303,7 +314,7 @@ class EmbeddingFilter(Filter_generic):
         mol_energy = AllChem.UFFGetMoleculeForceField(mol).CalcEnergy()
         return mol_energy
 
-    def calc_unconstrained_energy(self, og_mol) -> float:
+    def calc_unconstrained_energy(self, og_mol: Mol) -> float:
         """
         Create ten unconstrained conformations for each molecule and calculate the energy.
 
@@ -324,9 +335,14 @@ class EmbeddingFilter(Filter_generic):
         avg = sum(unconstrained_energies) / len(unconstrained_energies)
         return avg
 
-    def filter_smi(self, merge: str, fragA, fragB, synthon: str,
-                   energy_threshold: float = config_filter.ENERGY_THRESHOLD) \
-            -> Tuple:
+    def filter_smi(
+        self,
+        merge: str,
+        fragA: Mol,
+        fragB: Mol,
+        synthon: str,
+        energy_threshold: float = config_filter.ENERGY_THRESHOLD,
+    ) -> Tuple[bool, None]:
         """
         Runs the filter by embedding (if possible) the molecule, calculating the energy of
         the constrained conformation, and comparing with the energy of the unconstrained
@@ -357,8 +373,12 @@ class EmbeddingFilter(Filter_generic):
 
         else:
             for embedded_mol in embedded_mols:
-                const_energy = self.calc_energy(embedded_mol)  # energy of constrained conformation
-                unconst_energy = self.calc_unconstrained_energy(merge)  # energy of avg unconstrained conformation
+                const_energy = self.calc_energy(
+                    embedded_mol
+                )  # energy of constrained conformation
+                unconst_energy = self.calc_unconstrained_energy(
+                    merge
+                )  # energy of avg unconstrained conformation
                 # if the energy of the constrained conformation is less, then pass filter
                 if const_energy <= unconst_energy:
                     result = True
@@ -377,7 +397,9 @@ class EmbeddingFilter(Filter_generic):
 
         return result, embedded
 
-    def filter_all(self, cpus: int = config_filter.N_CPUS_FILTER_PAIR) -> Tuple[list, list]:
+    def filter_all(
+        self, cpus: int = config_filter.N_CPUS_FILTER_PAIR
+    ) -> Tuple[list, list]:
         """
         Runs the descriptor filter on all the SMILES in parallel.
 
@@ -387,9 +409,10 @@ class EmbeddingFilter(Filter_generic):
         :return: list of results (True or False); list of mols (RDKit molecules)
         :rtype: tuple
         """
-        res = Parallel(n_jobs=cpus, backend='multiprocessing') \
-            (delayed(self.filter_smi)(smi, self._fragmentA, self._fragmentB, synthon) for smi, synthon in
-             zip(self.smis, self.synthons))
+        res = Parallel(n_jobs=cpus, backend="multiprocessing")(
+            delayed(self.filter_smi)(smi, self._fragmentA, self._fragmentB, synthon)
+            for smi, synthon in zip(self.smis, self.synthons)
+        )
         self.results = [r[0] for r in res]
         self.mols = [r[1] for r in res]
         return self.results, self.mols

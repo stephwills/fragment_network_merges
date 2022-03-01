@@ -139,3 +139,6 @@ tests/test_output/
 tests/test_working/
 test.pdb
 notebooks/
+filter/place_simsearch.py
+filter/run_focused_query.py
+*docking_score.py

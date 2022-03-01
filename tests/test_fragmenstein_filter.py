@@ -7,7 +7,6 @@ import unittest
 from filter.fragmenstein_filter import FragmensteinFilter
 from merge.preprocessing import get_mol, get_protein
 
-
 frag_dir = os.path.join("tests", "test_Fragalysis")
 fragmentA_path = get_mol("Mpro", "x0107_0A", False, frag_dir)
 fragmentB_path = get_mol("Mpro", "x0678_0A", False, frag_dir)
