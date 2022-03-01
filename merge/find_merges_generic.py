@@ -3,42 +3,42 @@ Used to generate merges between two fragments using the fragment network.
 Uses code from https://github.com/tdudgeon/fragment-network-merges.
 """
 
-import os
-import json
 import itertools
-import time
+import json
+import os
 import shutil
-
+import time
 from abc import ABC, abstractmethod
 from typing import List, Tuple
-from rdkit import Chem
-from rdkit.Chem import rdShapeHelpers, Mol
 
+from filter.embedding_filter import add_coordinates, remove_xe
 from merge.config_merge import config_merge
 from merge.preprocessing import get_mol, get_pair_dict, get_smiles, load_json
-from filter.embedding_filter import add_coordinates, remove_xe
+from rdkit import Chem
+from rdkit.Chem import Mol, rdShapeHelpers
 
 
 class SearchSession_generic(ABC):
     """
     Abstract class for searching the Fragment Network.
     """
+
     @abstractmethod
-    def find_synthons(self, smiles:str) -> List[str]:
+    def find_synthons(self, smiles: str) -> List[str]:
         """
         To extract synthons for a given fragment node.
         """
         raise NotImplementedError()
 
     @abstractmethod
-    def find_molecule_node(self, fragment:str):
+    def find_molecule_node(self, fragment: str):
         """
         Retrieves a node for a given fragment from the database.
         """
         raise NotImplementedError()
 
     @abstractmethod
-    def find_expansions( self, fragmentA:str, synthon:str) -> set:
+    def find_expansions(self, fragmentA: str, synthon: str) -> set:
         """
         Identifies expansions of a fragment that contain a synthon of interest.
         """
@@ -50,6 +50,7 @@ class MergerFinder_generic(ABC):
     Abstract class containing functions for finding and filtering fragment nodes, filtering synthons and finding
     expansions
     """
+
     @abstractmethod
     def getSearchSession(self) -> SearchSession_generic:
         """
@@ -57,7 +58,7 @@ class MergerFinder_generic(ABC):
         """
         raise NotImplementedError()
 
-    def check_for_nodes(self, fragments:list) -> Tuple[int, int]:
+    def check_for_nodes(self, fragments: list) -> Tuple[int, int]:
         """
         Checks if nodes are present.
         Prints statement with how many of the fragments are present in the network.
@@ -74,14 +75,14 @@ class MergerFinder_generic(ABC):
         number_fragments = len(fragments)
         with self.getSearchSession() as session:
             for fragment in fragments:
-                mol = session.find_molecule_node( fragment)  # run neo4j query
+                mol = session.find_molecule_node(fragment)  # run neo4j query
 
                 if mol:
                     number_nodes += 1
-            print(f'{number_nodes} of {number_fragments} fragments present in network')
+            print(f"{number_nodes} of {number_fragments} fragments present in network")
         return number_nodes, number_fragments
 
-    def filter_for_nodes(self, fragments:list, names:list) -> Tuple[list, list]:
+    def filter_for_nodes(self, fragments: list, names: list) -> Tuple[list, list]:
         """
         Checks if nodes are present and filters fragments for those that are in network.
 
@@ -103,10 +104,12 @@ class MergerFinder_generic(ABC):
                     fragments.pop(i)
                     names.pop(i)
                     removed += 1
-        print(f'{removed} fragments removed from list. {len(fragments)} fragments remaining.')
+        print(
+            f"{removed} fragments removed from list. {len(fragments)} fragments remaining."
+        )
         return fragments, names
 
-    def get_synthons(self, smiles:str) -> list:
+    def get_synthons(self, smiles: str) -> list:
         """
         Extracts the synthons from the database for a given fragment.
 
@@ -118,10 +121,10 @@ class MergerFinder_generic(ABC):
         """
         with self.getSearchSession() as session:
             synthons = session.find_synthons(smiles)
-            print(f'Found {len(synthons)} synthons')
+            print(f"Found {len(synthons)} synthons")
             return synthons
 
-    def get_combinations(self, fragments:list, names:list) -> Tuple[list, list]:
+    def get_combinations(self, fragments: list, names: list) -> Tuple[list, list]:
         """
         Enumerate all possible combinations of fragments for merging.
 
@@ -139,7 +142,9 @@ class MergerFinder_generic(ABC):
         name_pairs = list(itertools.permutations(names, 2))
         return fragment_pairs, name_pairs
 
-    def carbons_check(self, synthons:list, num_carbons:int=config_merge.MIN_CARBONS) -> list:
+    def carbons_check(
+        self, synthons: list, num_carbons: int = config_merge.MIN_CARBONS
+    ) -> list:
         """
         Counts the number of carbons in the synthons. Keeps synthons that have at least three carbons.
 
@@ -152,7 +157,7 @@ class MergerFinder_generic(ABC):
         :rtype: list
         """
         filtered_synthons = []
-        carbon = Chem.MolFromSmarts('[#6]')
+        carbon = Chem.MolFromSmarts("[#6]")
         for synthon in synthons:
             synthon_mol = Chem.MolFromSmiles(synthon)
             carbon_count = len(synthon_mol.GetSubstructMatches(carbon))
@@ -161,8 +166,13 @@ class MergerFinder_generic(ABC):
 
         return filtered_synthons
 
-    def substructure_check(self, synthons:list, fragmentA:Mol, fragmentB:Mol, synthon_overlap:float=config_merge.SYNTH_OVERLAP)\
-            -> list:
+    def substructure_check(
+        self,
+        synthons: list,
+        fragmentA: Mol,
+        fragmentB: Mol,
+        synthon_overlap: float = config_merge.SYNTH_OVERLAP,
+    ) -> list:
         """
         Checks if the synthon is already present in fragment A and in an overlapping position.
         These synthons result in elaborations of fragment A rather than a merge.
@@ -200,8 +210,15 @@ class MergerFinder_generic(ABC):
 
         return filtered_synthons
 
-    def get_expansions(self, fragments:tuple, names:tuple, target:str, output_dir:str, synthons: list = None,
-                       fragalysis_dir = config_merge.FRAGALYSIS_DATA_DIR) -> dict:
+    def get_expansions(
+        self,
+        fragments: tuple,
+        names: tuple,
+        target: str,
+        output_dir: str,
+        synthons: list = None,
+        fragalysis_dir=config_merge.FRAGALYSIS_DATA_DIR,
+    ) -> dict:
         """
         Function executes the whole process, generating synthons for fragment B and using them to
         generate expansions of fragment A. Returns a dictionary containing all the synthons as keys,
@@ -226,26 +243,34 @@ class MergerFinder_generic(ABC):
         fragmentA, fragmentB = fragments[0], fragments[1]
         nameA, nameB = names[0], names[1]
         molA, molB = get_mol(target, nameA, True), get_mol(target, nameB, True)
-        print(f'Expanding fragment A: {nameA} with synthons of fragment B: {nameB}')
+        print(f"Expanding fragment A: {nameA} with synthons of fragment B: {nameB}")
 
         # check if file already exists containing merges
         if output_dir is not None:
-            filename = nameA + '_' + nameB + '.json'  # name json file using fragment names
-            if not os.path.exists(output_dir):  # if output dir doesn't exist, create dir
+            filename = (
+                nameA + "_" + nameB + ".json"
+            )  # name json file using fragment names
+            if not os.path.exists(
+                output_dir
+            ):  # if output dir doesn't exist, create dir
                 os.makedirs(output_dir)
             filepath = os.path.join(output_dir, filename)
             if os.path.isfile(filepath):
                 with open(filepath) as f:
-                    return json.load(f)  # if file exists, returns the existing merge dict
+                    return json.load(
+                        f
+                    )  # if file exists, returns the existing merge dict
 
         if synthons:
             # if we have pre-defined synthons that we want to use (e.g. for a focused 3-hop query after doing 2-hop)
             true_synthons = self.get_synthons(fragmentB)
             for i, synthon in enumerate(true_synthons):
                 if synthon not in synthons:
-                    print(f"Synthon {synthon} is not a synthon of fragment {nameB}. Cannot run expansion.")
+                    print(
+                        f"Synthon {synthon} is not a synthon of fragment {nameB}. Cannot run expansion."
+                    )
                     synthons.remove(synthon)
-            print(f'{len(synthons)} pre-defined synthons are being used for expansion')
+            print(f"{len(synthons)} pre-defined synthons are being used for expansion")
             print(synthons)
 
         else:
@@ -254,8 +279,10 @@ class MergerFinder_generic(ABC):
 
             # filter synthons
             synthons = self.carbons_check(synthons)  # filter by number of carbons
-            synthons = self.substructure_check(synthons, molA, molB)  # filter by whether in fragment A
-            print(f'{len(synthons)} synthons remaining after filtering')
+            synthons = self.substructure_check(
+                synthons, molA, molB
+            )  # filter by whether in fragment A
+            print(f"{len(synthons)} synthons remaining after filtering")
 
         # run database query and expansion
         all_expansions = {}
@@ -264,26 +291,32 @@ class MergerFinder_generic(ABC):
             total_expansions = 0
             expanded_synthons = 0
             for synthon in synthons:  # expand fragment A using each synthon
-                print(f'Running synthon {number}')
+                print(f"Running synthon {number}")
                 expansions = session.find_expansions(fragmentA, synthon)
-                all_expansions[synthon] = list(expansions)  # store in dictionary with the synthon as key
-                print(f'Synthon {number}: found {len(expansions)} expansions')
+                all_expansions[synthon] = list(
+                    expansions
+                )  # store in dictionary with the synthon as key
+                print(f"Synthon {number}: found {len(expansions)} expansions")
                 number += 1
                 total_expansions += len(expansions)
                 if expansions:  # record if the synthon led to expansions
                     expanded_synthons += 1
-        print(f'{total_expansions} expansions from {expanded_synthons} out of {len(synthons)} synthons')
-        print('\n')
+        print(
+            f"{total_expansions} expansions from {expanded_synthons} out of {len(synthons)} synthons"
+        )
+        print("\n")
 
         # save as json file
         if output_dir is not None:
-            with open(filepath, 'w') as f:
+            with open(filepath, "w") as f:
                 json.dump(all_expansions, f)
 
         return all_expansions
 
-### NEW CODE TO PREVENT MAKING REDUNDANT QUERIES ###
-    def get_unique_synthons(self, nameA: str, nameBs: list, target:str) -> Tuple[list, dict]:
+    ### NEW CODE TO PREVENT MAKING REDUNDANT QUERIES ###
+    def get_unique_synthons(
+        self, nameA: str, nameBs: list, target: str
+    ) -> Tuple[list, dict]:
         """
         For a given fragment A, get the synthons for each fragment B and thus the unique synthons across all pairs
         (several synthons will be the same for different fragment Bs, so we don't want to re-run these queries).
@@ -305,7 +338,7 @@ class MergerFinder_generic(ABC):
         molA = get_mol(target, nameA, True)  # get mol for fragment A
 
         for nameB in nameBs:
-            print(f'Generating synthons: fragment A: {nameA}; fragment B: {nameB}')
+            print(f"Generating synthons: fragment A: {nameA}; fragment B: {nameB}")
 
             # get fragment B smiles and mol
             fragmentB = get_smiles(target, nameB)
@@ -316,20 +349,30 @@ class MergerFinder_generic(ABC):
 
             # filter synthons
             synthons = self.carbons_check(synthons)  # filter by number of carbons
-            synthons = self.substructure_check(synthons, molA, molB)  # filter by whether in fragment A
-            print(f'{len(synthons)} synthons remaining after filtering')
+            synthons = self.substructure_check(
+                synthons, molA, molB
+            )  # filter by whether in fragment A
+            print(f"{len(synthons)} synthons remaining after filtering")
             total_synthons += len(synthons)
             # record info
             synthon_dict[nameB] = synthons
             for s in synthons:
                 all_synthons.add(s)
 
-        print(f"{len(all_synthons)} unique synthons for expansion of {nameA} (out of {total_synthons} total)")
+        print(
+            f"{len(all_synthons)} unique synthons for expansion of {nameA} (out of {total_synthons} total)"
+        )
 
         return list(all_synthons), synthon_dict
 
-    def get_all_expansions(self, nameA, all_synthons: list, target: str, output_dir=None,
-                           working_dir=config_merge.WORKING_DIR) -> dict:
+    def get_all_expansions(
+        self,
+        nameA,
+        all_synthons: list,
+        target: str,
+        output_dir=None,
+        working_dir=config_merge.WORKING_DIR,
+    ) -> dict:
         """
         For a given fragment A and all the synthons generated from the fragment B pairs, function queries the network
         to identify all expansions for each synthon. Returns a dictionary with the synthon as the key and list of
@@ -352,7 +395,7 @@ class MergerFinder_generic(ABC):
         # check if there is an intermediate file
         fname = os.path.join(working_dir, f"{nameA}_expansions.json")
         if os.path.exists(fname):
-            print(f'Expansions have already been generated for {nameA}')
+            print(f"Expansions have already been generated for {nameA}")
             all_expansions = load_json(fname)
         else:
             all_expansions = {}
@@ -374,47 +417,62 @@ class MergerFinder_generic(ABC):
             total_expansions = 0
             expanded_synthons = 0
             for synthon in all_synthons:  # expand fragment A using each synthon
-                print(f'Running synthon {number}/{len(all_synthons)}')
+                print(f"Running synthon {number}/{len(all_synthons)}")
                 start = time.time()
                 # skip synthon if results already generated
                 if synthon in all_expansions:
-                    print(f'Results already generated for synthon {synthon}')
+                    print(f"Results already generated for synthon {synthon}")
                     expansions = all_expansions[synthon]
                 else:
                     expansions = session.find_expansions(fragA, synthon)
-                    all_expansions[synthon] = list(expansions)  # store in dictionary with the synthon as key
-                print(f'Found {len(expansions)} expansions')
+                    all_expansions[synthon] = list(
+                        expansions
+                    )  # store in dictionary with the synthon as key
+                print(f"Found {len(expansions)} expansions")
                 number += 1
                 total_expansions += len(expansions)
                 if expansions:  # record if the synthon led to expansions
                     expanded_synthons += 1
                 end = time.time()
                 if synthon not in timings:
-                    synthon_time = round(end-start, 2)
+                    synthon_time = round(end - start, 2)
                     timings[synthon] = synthon_time
 
                 # write to file after each query
-                with open(fname, 'w') as f:
+                with open(fname, "w") as f:
                     json.dump(all_expansions, f)
 
                 # write timings to file after each query
-                with open(timings_fname, 'w') as f:
+                with open(timings_fname, "w") as f:
                     json.dump(timings, f)
-        print(f'{total_expansions} expansions from {expanded_synthons} out of {len(all_synthons)} synthons')
+        print(
+            f"{total_expansions} expansions from {expanded_synthons} out of {len(all_synthons)} synthons"
+        )
         # record total time taken
         total_time = sum(timings.values())
-        timings['total_time'] = total_time
-        with open(timings_fname, 'w') as f:
+        timings["total_time"] = total_time
+        with open(timings_fname, "w") as f:
             json.dump(timings, f)
         if output_dir:
-            shutil.move(timings_fname, os.path.join(output_dir, f"{nameA}_timings.json"))
+            shutil.move(
+                timings_fname, os.path.join(output_dir, f"{nameA}_timings.json")
+            )
 
         return all_expansions
 
-    def _expand_fragmentA(self, nameA, pair_dict, target,  output_dir=None, working_dir=config_merge.WORKING_DIR):
+    def _expand_fragmentA(
+        self,
+        nameA,
+        pair_dict,
+        target,
+        output_dir=None,
+        working_dir=config_merge.WORKING_DIR,
+    ):
         nameBs = pair_dict[nameA]
         unique_synthons, synthon_dict = self.get_unique_synthons(nameA, nameBs, target)
-        all_expansions = self.get_all_expansions(nameA, unique_synthons, target, output_dir, working_dir)
+        all_expansions = self.get_all_expansions(
+            nameA, unique_synthons, target, output_dir, working_dir
+        )
 
         for nameB in nameBs:
             # save a file containing expansions for each fragment pair
@@ -424,12 +482,19 @@ class MergerFinder_generic(ABC):
                 dict_to_save[synthon] = all_expansions[synthon]
 
             if output_dir:
-                fname = nameA + '_' + nameB + '.json'
+                fname = nameA + "_" + nameB + ".json"
                 fname = os.path.join(output_dir, fname)
-                with open(fname, 'w') as f:
+                with open(fname, "w") as f:
                     json.dump(dict_to_save, f)
 
-    def expand_fragmentA(self, name_pairs, target, cpus=config_merge.N_CPUS_FILTER_PAIR, output_dir=None, working_dir=config_merge.WORKING_DIR):
+    def expand_fragmentA(
+        self,
+        name_pairs,
+        target,
+        cpus=config_merge.N_CPUS_FILTER_PAIR,
+        output_dir=None,
+        working_dir=config_merge.WORKING_DIR,
+    ):
         """
         Function is given the whole list of pairs of enumerated fragments and generates all merges.
         Creates files in the output directory containing the expansions for each pair.
@@ -447,16 +512,21 @@ class MergerFinder_generic(ABC):
         """
         # check for working dir
         from joblib import Parallel, delayed
+
         if not os.path.exists(working_dir):
             os.mkdir(working_dir)
 
         # get fragBs to be used for expanding each fragA
         pair_dict = get_pair_dict(name_pairs)
+        Parallel(n_jobs=cpus, backend="multiprocessing")(
+            delayed(self._expand_fragmentA)(
+                nameA, pair_dict, target, output_dir, working_dir
+            )
+            for nameA in pair_dict
+        )
 
-        Parallel(n_jobs=cpus, backend='multiprocessing')(delayed(self._expand_fragmentA)(nameA, pair_dict, target, output_dir, working_dir) for nameA in pair_dict)
 
-
-def add_required_synthons(labels:set, synthon:str):
+def add_required_synthons(labels: set, synthon: str):
     """
     Checks that the synthon has a single attachment point and single component.
     If yes, the synthon is added to the set of labels.
@@ -466,5 +536,5 @@ def add_required_synthons(labels:set, synthon:str):
     :param synthon: smiles string containing synthon with Xe atom
     :type synthon: string
     """
-    if synthon.count('[Xe]') == 1 and synthon.count(".") == 0:
+    if synthon.count("[Xe]") == 1 and synthon.count(".") == 0:
         labels.add(synthon)

@@ -4,13 +4,14 @@ Uses code from https://github.com/tdudgeon/fragment-network-merges.
 """
 
 import time
-import requests
 import urllib.parse
+from datetime import MINYEAR, datetime
 
-from datetime import datetime, MINYEAR
-
+import requests
 from merge.config_merge import config_merge
-from merge.find_merges_generic import MergerFinder_generic, add_required_synthons, SearchSession_generic
+from merge.find_merges_generic import (MergerFinder_generic,
+                                       SearchSession_generic,
+                                       add_required_synthons)
 from merge.utils import Singleton
 
 
@@ -29,25 +30,35 @@ class RestAPI_wrapper(SearchSession_generic):
     @property
     def token(self):
 
-        if (datetime.now() - self._last_token_time).total_seconds() > self.token_validity_secs:
+        if (
+            datetime.now() - self._last_token_time
+        ).total_seconds() > self.token_validity_secs:
             print("Generating new token for restAPI")
             token = None
             for i in range(self.num_retry):
-                r = requests.post(self.TOKEN_SERVER, data=dict(grant_type="password", client_id="fragnet-search-ui",
-                                                               username=config_merge.RESTAPI_USER,
-                                                               password=config_merge.RESTAPI_PASS))
+                r = requests.post(
+                    self.TOKEN_SERVER,
+                    data=dict(
+                        grant_type="password",
+                        client_id="fragnet-search-ui",
+                        username=config_merge.RESTAPI_USER,
+                        password=config_merge.RESTAPI_PASS,
+                    ),
+                )
                 if r.ok:
                     token = r.json()["access_token"]
                 else:
                     time.sleep(self.sleep_time_retry)
             if token is None:
                 print(r)
-                raise ConnectionError("Error, authentication token couldn't be generated")
+                raise ConnectionError(
+                    "Error, authentication token couldn't be generated"
+                )
             self._last_token_time = datetime.now()
             self._token = token
         return self._token
 
-    def find_molecule_node(self, fragment:str):
+    def find_molecule_node(self, fragment: str):
         """
         Finds node in the fragment network.
 
@@ -60,8 +71,10 @@ class RestAPI_wrapper(SearchSession_generic):
         fragment = urllib.parse.quote_plus(fragment)
         result = None
         for i in range(self.num_retry):
-            r = requests.get(f"{self.FRAGNET_SERVER}/molecule/{fragment}",
-                             headers={"Authorization": f"bearer {self.token}"})
+            r = requests.get(
+                f"{self.FRAGNET_SERVER}/molecule/{fragment}",
+                headers={"Authorization": f"bearer {self.token}"},
+            )
             if r.ok:
                 result = r.json()
             else:
@@ -78,8 +91,10 @@ class RestAPI_wrapper(SearchSession_generic):
         smi = urllib.parse.quote_plus(smi)
         result = None
         for i in range(self.num_retry):
-            r = requests.get(f"{self.FRAGNET_SERVER}/fragments/{smi}",
-                             headers={"Authorization": f"bearer {self.token}"})
+            r = requests.get(
+                f"{self.FRAGNET_SERVER}/fragments/{smi}",
+                headers={"Authorization": f"bearer {self.token}"},
+            )
             if r.ok:
                 result = r.json()
             else:
@@ -89,7 +104,7 @@ class RestAPI_wrapper(SearchSession_generic):
             raise ConnectionError("Error, _find_oneMol_synthons %s failed" % smi)
         return result
 
-    def find_synthons(self, fragment:str) -> list:
+    def find_synthons(self, fragment: str) -> list:
         """
         Query for all child fragments (recursive).
         Extract the label property of each edge and collect a set of SMILES that match our needs.
@@ -106,8 +121,14 @@ class RestAPI_wrapper(SearchSession_generic):
             add_required_synthons(labels, synthon)
         return list(labels)
 
-    def find_expansions(self, smiles: str, synthon: str, number_hops: int = config_merge.NUM_HOPS,
-                        hacMin: int = config_merge.MIN_HAC, hacMax: int = config_merge.MAX_HAC) -> set:
+    def find_expansions(
+        self,
+        smiles: str,
+        synthon: str,
+        number_hops: int = config_merge.NUM_HOPS,
+        hacMin: int = config_merge.MIN_HAC,
+        hacMax: int = config_merge.MAX_HAC,
+    ) -> set:
         """
         Expand fragment 'A' using the synthons generated from fragment 'B' using a neo4j
         query. Query limited to compounds available from vendors a specified number of hops away,
@@ -133,16 +154,20 @@ class RestAPI_wrapper(SearchSession_generic):
 
         result = None
         for i in range(self.num_retry):
-            r = requests.get(f"{self.FRAGNET_SERVER}/synthon-expand/{smiles}?synthon={synthon}&"
-                             f"hops={number_hops}&hacMin={hacMin}&hacMax={hacMax}",
-                             headers={"Authorization": f"bearer {self.token}"})
+            r = requests.get(
+                f"{self.FRAGNET_SERVER}/synthon-expand/{smiles}?synthon={synthon}&"
+                f"hops={number_hops}&hacMin={hacMin}&hacMax={hacMax}",
+                headers={"Authorization": f"bearer {self.token}"},
+            )
             if r.ok:
                 result = r.json()
             else:
                 time.sleep(self.sleep_time_retry)
         if result is None:
             print(r)
-            raise ConnectionError("Error, _find_expansions (%s - %s) failed" % (smi, synthon))
+            raise ConnectionError(
+                "Error, _find_expansions (%s - %s) failed" % (smi, synthon)
+            )
         expansions = set([example["smiles"] for example in result])
         return expansions
 
@@ -154,7 +179,6 @@ class RestAPI_wrapper(SearchSession_generic):
 
 
 class MergerFinder_restAPI(MergerFinder_generic):
-
     def __init__(self, **kwargs):
         self._driver = None
 

@@ -1,19 +1,19 @@
 """Functions for preprocessing files/fragments before running merge generation/filtering"""
 
-import os
 import json
-import numpy as np
+import os
 
+import numpy as np
+from merge.config_merge import config_merge
 from rdkit import Chem
 from rdkit.Chem import rdmolfiles
-from merge.config_merge import config_merge
 
 
 def load_json(fname):
     """
     Function to open json file
     """
-    with open(fname, 'r') as f:
+    with open(fname, "r") as f:
         data = json.load(f)
     return data
 
@@ -56,17 +56,17 @@ def get_smiles(target, fragment, fragalysis_dir=config_merge.FRAGALYSIS_DATA_DIR
     :return: smiles string
     :rtype: string
     """
-    dir = os.path.join(fragalysis_dir, target, 'aligned')
-    fname_part = f'{target}-{fragment}'  # the first part of the filenames/folder names
+    dir = os.path.join(fragalysis_dir, target, "aligned")
+    fname_part = f"{target}-{fragment}"  # the first part of the filenames/folder names
     path = os.path.join(dir, fname_part)
-    smiles_path = os.path.join(path, f'{fname_part}_smiles.txt')
+    smiles_path = os.path.join(path, f"{fname_part}_smiles.txt")
 
     try:
         with open(smiles_path) as smiles_file:  # open the file to get smiles
             smiles = smiles_file.read()
     except OSError as e:
-        print('SMILES file cannot be found for that fragment.')
-        print('Ensure files are saved correctly in Fragalysis format.')
+        print("SMILES file cannot be found for that fragment.")
+        print("Ensure files are saved correctly in Fragalysis format.")
         print(e)
 
     # smiles does not necessarily match what is in the network
@@ -76,7 +76,9 @@ def get_smiles(target, fragment, fragalysis_dir=config_merge.FRAGALYSIS_DATA_DIR
     return smiles
 
 
-def get_mol(target, fragment, return_mol=False, fragalysis_dir=config_merge.FRAGALYSIS_DATA_DIR):
+def get_mol(
+    target, fragment, return_mol=False, fragalysis_dir=config_merge.FRAGALYSIS_DATA_DIR
+):
     """
     Function to get the mol for each fragment.
     File paths are like this: TARGET/aligned/TARGET-FRAGMENT_CHAIN
@@ -94,24 +96,26 @@ def get_mol(target, fragment, return_mol=False, fragalysis_dir=config_merge.FRAG
     :return: smiles string
     :rtype: string
     """
-    dir = os.path.join(fragalysis_dir, target, 'aligned')
-    fname_part = f'{target}-{fragment}'  # the first part of the filenames/folder names
+    dir = os.path.join(fragalysis_dir, target, "aligned")
+    fname_part = f"{target}-{fragment}"  # the first part of the filenames/folder names
     path = os.path.join(dir, fname_part)
-    mol_path = os.path.join(path, f'{fname_part}.mol')
+    mol_path = os.path.join(path, f"{fname_part}.mol")
 
     if return_mol:
         try:
             mol = rdmolfiles.MolFromMolFile(mol_path)
             return mol
         except OSError as e:
-            print('Mol file cannot be found for that fragment.')
-            print('Ensure files are saved correctly in Fragalysis format.')
+            print("Mol file cannot be found for that fragment.")
+            print("Ensure files are saved correctly in Fragalysis format.")
             print(e)
     else:
         return mol_path
 
 
-def get_protein(target, fragment, fragalysis_dir=config_merge.FRAGALYSIS_DATA_DIR, return_mol=False):
+def get_protein(
+    target, fragment, return_mol=False, fragalysis_dir=config_merge.FRAGALYSIS_DATA_DIR
+):
     """
     Function to get the mol for each fragment.
     File paths are like this: TARGET/aligned/TARGET-FRAGMENT_CHAIN
@@ -127,17 +131,17 @@ def get_protein(target, fragment, fragalysis_dir=config_merge.FRAGALYSIS_DATA_DI
     :return: smiles string
     :rtype: string
     """
-    dir = os.path.join(fragalysis_dir, target, 'aligned')
-    fname_part = f'{target}-{fragment}'  # the first part of the filenames/folder names
-    protein_path = os.path.join(dir, fname_part, f'{fname_part}_apo-desolv.pdb')
+    dir = os.path.join(fragalysis_dir, target, "aligned")
+    fname_part = f"{target}-{fragment}"  # the first part of the filenames/folder names
+    protein_path = os.path.join(dir, fname_part, f"{fname_part}_apo-desolv.pdb")
 
     if return_mol:
         try:
             mol = rdmolfiles.MolFromPDBFile(protein_path)
             return mol
         except OSError as e:
-            print('Mol file cannot be found for that fragment.')
-            print('Ensure files are saved correctly in Fragalysis format.')
+            print("Mol file cannot be found for that fragment.")
+            print("Ensure files are saved correctly in Fragalysis format.")
             print(e)
     else:
         return protein_path
@@ -159,17 +163,17 @@ def get_files(target, fragment, fragalysis_dir=config_merge.FRAGALYSIS_DATA_DIR)
     :return: mol_file, protein_file
     :rtype: filepaths (strings)
     """
-    dir = os.path.join(fragalysis_dir, target, 'aligned')
-    fname_part = f'{target}-{fragment}'  # the first part of the filenames/folder names
+    dir = os.path.join(fragalysis_dir, target, "aligned")
+    fname_part = f"{target}-{fragment}"  # the first part of the filenames/folder names
     path = os.path.join(dir, fname_part)
-    mol_file = os.path.join(path, f'{fname_part}.mol')
-    protein_file = os.path.join(path, f'{fname_part}_apo-desolv.pdb')
+    mol_file = os.path.join(path, f"{fname_part}.mol")
+    protein_file = os.path.join(path, f"{fname_part}_apo-desolv.pdb")
 
     if os.path.exists(mol_file) and os.path.exists(protein_file):
         return mol_file, protein_file
     else:
-        print('Cannot find files for that fragment.')
-        print('Ensure files are saved correctly in Fragalysis format.')
+        print("Cannot find files for that fragment.")
+        print("Ensure files are saved correctly in Fragalysis format.")
 
 
 def get_distance(coord1, coord2):
@@ -223,8 +227,13 @@ def get_distance_between_fragments(fragmentA, fragmentB):
     return min(distances)
 
 
-def check_fragment_pairs(fragment_pairs, name_pairs, target, max_dist=config_merge.MAX_FRAG_DIST,
-                         working_dir=config_merge.WORKING_DIR):
+def check_fragment_pairs(
+    fragment_pairs,
+    name_pairs,
+    target,
+    max_dist=config_merge.MAX_FRAG_DIST,
+    working_dir=config_merge.WORKING_DIR,
+):
     """
     Function to filter the list of fragment pairs for those that are close
     enough to merge.
@@ -261,18 +270,24 @@ def check_fragment_pairs(fragment_pairs, name_pairs, target, max_dist=config_mer
     # write fragment pairs list to json file
     if not os.path.exists(working_dir):
         os.mkdir(working_dir)
-    filename = os.path.join(working_dir, f'{target}_pairs.json')
+    filename = os.path.join(working_dir, f"{target}_pairs.json")
 
     # check if fragment pairs list exists for this target in the working directory
     if os.path.exists(filename):
         existing_name_pairs = load_json(filename)
-        if sorted(existing_name_pairs) == sorted(filtered_name_pairs):  # check if fragment pairs are equivalent
-            print(f'Fragment pairs have already been enumerated for this set of fragments against {target}')
+        if sorted(existing_name_pairs) == sorted(
+            filtered_name_pairs
+        ):  # check if fragment pairs are equivalent
+            print(
+                f"Fragment pairs have already been enumerated for this set of fragments against {target}"
+            )
             return filtered_fragment_pairs, filtered_name_pairs
         else:
-            print(f'A different set of fragment pairs have already been enumerated against {target}')
+            print(
+                f"A different set of fragment pairs have already been enumerated against {target}"
+            )
 
-    with open(filename, 'w') as f:
+    with open(filename, "w") as f:
         json.dump(filtered_name_pairs, f)
 
     return filtered_fragment_pairs, filtered_name_pairs
@@ -303,15 +318,17 @@ def check_merges_run(smiles_pairs, name_pairs, output_dir):
 
     already_run = []  # record pairs already run
     for i, pair in enumerate(name_pairs):
-        merge = pair[0] + '_' + pair[1]
+        merge = pair[0] + "_" + pair[1]
         if output_dir:
-            filename = merge + '.json'
+            filename = merge + ".json"
             filepath = os.path.join(output_dir, filename)
-            if os.path.isfile(filepath):  # if file exists for merge pair then remove from list
+            if os.path.isfile(
+                filepath
+            ):  # if file exists for merge pair then remove from list
                 smiles_pairs.pop(i)
                 name_pairs.pop(i)
                 already_run.append(merge)
-                print('The following merges have already been run', already_run)
-                print(f'{len(name_pairs)} merge pairs remaining')
+                print("The following merges have already been run", already_run)
+                print(f"{len(name_pairs)} merge pairs remaining")
 
         return smiles_pairs, name_pairs

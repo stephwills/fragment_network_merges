@@ -2,23 +2,47 @@
 Used to filter out compounds that have a large overlap with the protein.
 """
 
-import numpy as np
-
-from joblib import Parallel, delayed
-from rdkit.Chem import rdShapeHelpers
 from typing import Tuple
 
+import numpy as np
 from filter.config_filter import config_filter
 from filter.generic_filter import Filter_generic
+from joblib import Parallel, delayed
+from rdkit.Chem import Mol, rdShapeHelpers
 
 
 class OverlapFilter(Filter_generic):
-
-    def __init__(self, smis: list, synthons: list, fragmentA, fragmentB, proteinA, proteinB, merge, mols, names):
-        super().__init__(smis, synthons, fragmentA, fragmentB, proteinA, proteinB, merge, mols, names)
+    def __init__(
+        self,
+        smis: list,
+        synthons: list,
+        fragmentA,
+        fragmentB,
+        proteinA=None,
+        proteinB=None,
+        merge=None,
+        mols=None,
+        names=None,
+        pair_working_dir=None,
+        pair_output_dir=None,
+    ):
+        super().__init__(
+            smis,
+            synthons,
+            fragmentA,
+            fragmentB,
+            proteinA,
+            proteinB,
+            merge,
+            mols,
+            names,
+            pair_working_dir,
+            pair_output_dir,
+        )
         self.results = None
 
-    def geometric_mean(self, distA: float, distB: float) -> float:
+    @staticmethod
+    def geometric_mean(distA: float, distB: float) -> float:
         """
         Calculates the geometric mean between the two distances.
 
@@ -32,7 +56,8 @@ class OverlapFilter(Filter_generic):
         """
         return np.sqrt(distA * distB)
 
-    def calc_distances(self, merge, proteinA, proteinB) -> Tuple[float, float]:
+    @staticmethod
+    def calc_distances(merge: Mol, proteinA: Mol, proteinB: Mol) -> Tuple[float, float]:
         """
         Calculate the distance between the merge and the proteins.
         The distance represents the proportion of the volume of the smaller molecule
@@ -52,7 +77,13 @@ class OverlapFilter(Filter_generic):
         distanceB = rdShapeHelpers.ShapeProtrudeDist(merge, proteinB)
         return distanceA, distanceB
 
-    def filter_smi(self, merge, proteinA, proteinB, clash_dist: float = config_filter.CLASH_DIST) -> bool:
+    def filter_smi(
+        self,
+        merge: Mol,
+        proteinA: Mol,
+        proteinB: Mol,
+        clash_dist: float = config_filter.CLASH_DIST,
+    ) -> bool:
         """
         Rules out molecules that have a >10% overlap with the protein (i.e. >90%
         protrusion).
@@ -69,7 +100,9 @@ class OverlapFilter(Filter_generic):
         :return: whether molecule passes (True) or fails (False) filter
         :rtype: bool
         """
-        distanceA, distanceB = self.calc_distances(merge, proteinA, proteinB)  # calculate distances
+        distanceA, distanceB = self.calc_distances(
+            merge, proteinA, proteinB
+        )  # calculate distances
         mean = self.geometric_mean(distanceA, distanceB)  # calculate mean of distances
         protrude_dist = 1 - clash_dist
         if mean <= protrude_dist:  # if overlap > clash_dist
@@ -78,7 +111,9 @@ class OverlapFilter(Filter_generic):
             result = True
         return result
 
-    def filter_all(self, cpus: int = config_filter.N_CPUS_FILTER_PAIR) -> Tuple[list, list]:
+    def filter_all(
+        self, cpus: int = config_filter.N_CPUS_FILTER_PAIR
+    ) -> Tuple[list, list]:
         """
         Runs the descriptor filter on all the SMILES in parallel.
 
@@ -88,6 +123,8 @@ class OverlapFilter(Filter_generic):
         :return: list of results (True or False); list of mols (RDKit molecules)
         :rtype: tuple
         """
-        self.results = Parallel(n_jobs=cpus, backend='multiprocessing') \
-            (delayed(self.filter_smi)(mol, self._proteinA, self._proteinB) for mol in self.mols)
+        self.results = Parallel(n_jobs=cpus, backend="multiprocessing")(
+            delayed(self.filter_smi)(mol, self._proteinA, self._proteinB)
+            for mol in self.mols
+        )
         return self.results, self.mols
