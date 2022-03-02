@@ -77,9 +77,10 @@ class FragmensteinFilter(Filter_generic):
         :return: dictionary containing Fragmenstein info
         :rtype: nested dictionary
         """
-        with open(json_file) as f:
-            data = json.load(f)
-        return data
+        if os.path.exists(json_file):
+            with open(json_file) as f:
+                data = json.load(f)
+            return data
 
     def _check_merge_directory(self, name: str) -> Tuple[str, bool]:
         """
@@ -160,9 +161,22 @@ class FragmensteinFilter(Filter_generic):
             # set the output directory
             Victor.work_path = self.work_pair_dir
 
-            # set up Victor and place the smiles
-            v = Victor(hits=hits, pdb_filename=self.proteinA, covalent_resi=residue)
-            v.place(smiles=smi, long_name=name)  # 'long_name' used to name the files
+            try:
+                # set up Victor and place the smiles
+                v = Victor(hits=hits, pdb_filename=self.proteinA, covalent_resi=residue)
+                v.place(smiles=smi, long_name=name)  # 'long_name' used to name the files
+            except Exception as e:
+                # if Fragmenstein fails, record the error and return filter fail
+                print(f"Fragmenstein failed for {name}: {str(e)}")
+                self.errors[name] = str(e)
+                with open(
+                        os.path.join(
+                            self.work_pair_dir, f"{self.merge}_fragmenstein_errors.json"
+                        ),
+                        "w",
+                ) as f:
+                    json.dump(self.errors.copy(), f)
+                queue.put([idx, False, None, None, None])
 
         data = self._get_dict(json_file)
 
@@ -233,6 +247,7 @@ class FragmensteinFilter(Filter_generic):
         queue = mp.Queue()
         manager = mp.Manager()
         self.timings = manager.dict()
+        self.errors = manager.dict()
         processes = [
             mp.Process(target=self.filter_smi, args=(queue, name, smi))
             for name, smi in zip(self.names, self.smis)
@@ -247,11 +262,11 @@ class FragmensteinFilter(Filter_generic):
 
         for p in processes:
             try:
-                r = queue.get(timeout=600)  # timeout set to 10 minutes
+                r = queue.get(timeout=5)  # timeout set to 10 minutes
                 res.append(r)
             except mpq.Empty:
                 p.terminate()
-
+        print('res', res)
         res = sorted(res, key=lambda tup: tup[0])
         self.results = [r[1] for r in res]
         self.mols = [r[2] for r in res]
