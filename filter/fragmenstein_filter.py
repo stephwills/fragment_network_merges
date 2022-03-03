@@ -266,7 +266,7 @@ class FragmensteinFilter(Filter_generic):
                 res.append(r)
             except mpq.Empty:
                 p.terminate()
-        print('res', res)
+
         res = sorted(res, key=lambda tup: tup[0])
         self.results = [r[1] for r in res]
         self.mols = [r[2] for r in res]
