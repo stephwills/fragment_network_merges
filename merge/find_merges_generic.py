@@ -11,7 +11,7 @@ import time
 from abc import ABC, abstractmethod
 from typing import List, Tuple
 
-from filter.embedding_filter import add_coordinates, remove_xe
+from filter.embedding_filter import remove_xe, add_coordinates
 from merge.config_merge import config_merge
 from merge.preprocessing import get_mol, get_pair_dict, get_smiles, load_json
 from rdkit import Chem
@@ -143,7 +143,7 @@ class MergerFinder_generic(ABC):
         return fragment_pairs, name_pairs
 
     def carbons_check(
-        self, synthons: list, num_carbons: int = config_merge.MIN_CARBONS
+            self, synthons: list, num_carbons: int = config_merge.MIN_CARBONS
     ) -> list:
         """
         Counts the number of carbons in the synthons. Keeps synthons that have at least three carbons.
@@ -167,11 +167,11 @@ class MergerFinder_generic(ABC):
         return filtered_synthons
 
     def substructure_check(
-        self,
-        synthons: list,
-        fragmentA: Mol,
-        fragmentB: Mol,
-        synthon_overlap: float = config_merge.SYNTH_OVERLAP,
+            self,
+            synthons: list,
+            fragmentA: Mol,
+            fragmentB: Mol,
+            synthon_overlap: float = config_merge.SYNTH_OVERLAP,
     ) -> list:
         """
         Checks if the synthon is already present in fragment A and in an overlapping position.
@@ -196,28 +196,38 @@ class MergerFinder_generic(ABC):
             synthon_A = remove_xe(synthon_A)
             synthon_B = Chem.Mol(synthon_A)
 
-            try:
-                fA_match = add_coordinates(fragmentA, synthon_A)
-                fB_match = add_coordinates(fragmentB, synthon_B)
+            fA_atom_matches = fragmentA.GetSubstructMatches(synthon_A)
+            fB_atom_matches = fragmentB.GetSubstructMatches(synthon_B)
 
-                distance = rdShapeHelpers.ShapeProtrudeDist(fA_match, fB_match)
-                protrusion_threshold = 1 - synthon_overlap
-                if protrusion_threshold >= distance:
+            fA_matches = [add_coordinates(fragmentA, synthon_A, matches) for matches in fA_atom_matches]
+            fB_matches = [add_coordinates(fragmentB, synthon_B, matches) for matches in fB_atom_matches]
+
+            if len(fA_matches) > 0 and len(fB_matches) > 0:
+                res = []
+                for fA_match, fB_match in zip(fA_matches, fB_matches):
+                    distance = rdShapeHelpers.ShapeProtrudeDist(fA_match, fB_match)
+                    protrusion_threshold = 1 - synthon_overlap
+                    if protrusion_threshold >= distance:
+                        res.append(True)
+                    else:
+                        res.append(False)
+
+                if False not in res:
                     filtered_synthons.append(synthon)
 
-            except:
+            else:
                 filtered_synthons.append(synthon)
 
         return filtered_synthons
 
     def get_expansions(
-        self,
-        fragments: tuple,
-        names: tuple,
-        target: str,
-        output_dir: str,
-        synthons: list = None,
-        fragalysis_dir=config_merge.FRAGALYSIS_DATA_DIR,
+            self,
+            fragments: tuple,
+            names: tuple,
+            target: str,
+            output_dir: str,
+            synthons: list = None,
+            fragalysis_dir=config_merge.FRAGALYSIS_DATA_DIR,
     ) -> dict:
         """
         Function executes the whole process, generating synthons for fragment B and using them to
@@ -248,10 +258,10 @@ class MergerFinder_generic(ABC):
         # check if file already exists containing merges
         if output_dir is not None:
             filename = (
-                nameA + "_" + nameB + ".json"
+                    nameA + "_" + nameB + ".json"
             )  # name json file using fragment names
             if not os.path.exists(
-                output_dir
+                    output_dir
             ):  # if output dir doesn't exist, create dir
                 os.makedirs(output_dir)
             filepath = os.path.join(output_dir, filename)
@@ -315,7 +325,7 @@ class MergerFinder_generic(ABC):
 
     ### NEW CODE TO PREVENT MAKING REDUNDANT QUERIES ###
     def get_unique_synthons(
-        self, nameA: str, nameBs: list, target: str
+            self, nameA: str, nameBs: list, target: str
     ) -> Tuple[list, dict]:
         """
         For a given fragment A, get the synthons for each fragment B and thus the unique synthons across all pairs
@@ -366,12 +376,12 @@ class MergerFinder_generic(ABC):
         return list(all_synthons), synthon_dict
 
     def get_all_expansions(
-        self,
-        nameA,
-        all_synthons: list,
-        target: str,
-        output_dir=None,
-        working_dir=config_merge.WORKING_DIR,
+            self,
+            nameA,
+            all_synthons: list,
+            target: str,
+            output_dir=None,
+            working_dir=config_merge.WORKING_DIR,
     ) -> dict:
         """
         For a given fragment A and all the synthons generated from the fragment B pairs, function queries the network
@@ -461,12 +471,12 @@ class MergerFinder_generic(ABC):
         return all_expansions
 
     def _expand_fragmentA(
-        self,
-        nameA,
-        pair_dict,
-        target,
-        output_dir=None,
-        working_dir=config_merge.WORKING_DIR,
+            self,
+            nameA,
+            pair_dict,
+            target,
+            output_dir=None,
+            working_dir=config_merge.WORKING_DIR,
     ):
         nameBs = pair_dict[nameA]
         unique_synthons, synthon_dict = self.get_unique_synthons(nameA, nameBs, target)
@@ -488,12 +498,12 @@ class MergerFinder_generic(ABC):
                     json.dump(dict_to_save, f)
 
     def expand_fragmentA(
-        self,
-        name_pairs,
-        target,
-        cpus=config_merge.N_CPUS_FILTER_PAIR,
-        output_dir=None,
-        working_dir=config_merge.WORKING_DIR,
+            self,
+            name_pairs,
+            target,
+            cpus=config_merge.N_CPUS_FILTER_PAIR,
+            output_dir=None,
+            working_dir=config_merge.WORKING_DIR,
     ):
         """
         Function is given the whole list of pairs of enumerated fragments and generates all merges.
