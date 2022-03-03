@@ -97,13 +97,8 @@ def add_coordinates(fragment: Mol, substructure: Mol, atom_matches: Tuple) -> Mo
     :rtype: RDKit rwmol
     """
     sub_mol = Chem.RWMol(substructure)  # create editable copy of the substructure
-    sub_conf = Chem.Conformer(
-        sub_mol.GetNumAtoms()
-    )  # create a conformer of the substructure
-    sub_matches = sub_mol.GetSubstructMatch(
-        substructure
-    )  # get matches so atoms in the same order
-
+    sub_conf = Chem.Conformer(sub_mol.GetNumAtoms())  # conformer of the substructure
+    sub_matches = sub_mol.GetSubstructMatch(substructure)  # so atoms in the same order
     ref_conf = fragment.GetConformer()  # get the conformation of the actual fragment
 
     for i, match in enumerate(
@@ -195,7 +190,9 @@ class EmbeddingFilter(Filter_generic):
         sq = (coord1 - coord2) ** 2
         return np.sqrt(np.sum(sq))
 
-    def _check_overlap(self, molA: Mol, molB: Mol) -> Tuple[Mol, Mol]:
+    def _check_overlap(
+        self, molA: Mol, molB: Mol, atom_clash: float = config_filter.ATOM_CLASH_DIST
+    ) -> Tuple[Mol, Mol]:
         """
         Function checks if parts of two molecules overlap. If atoms overlap, then they are removed
         from one of the molecules.
@@ -218,8 +215,8 @@ class EmbeddingFilter(Filter_generic):
             for j in range(confB.GetNumAtoms()):
                 posB = np.array(confB.GetAtomPosition(j))
                 dist = self.get_distance(posA, posB)
-                # if atoms closer than 0.5A, recognised as clashes
-                if dist < 0.5:
+                # if atoms closer than e.g. 0.5A, recognised as clashes
+                if dist < atom_clash:
                     clashes.append(i)
                     break
         if clashes:  # if any atoms identified as clashes
@@ -248,15 +245,12 @@ class EmbeddingFilter(Filter_generic):
         :rtype: list
         """
         # substructure match for fragment A
-        mcsA = self._get_mcs(
-            merge_mol, fragA
-        )  # identify the atoms that came from fragment A
-        mcsA_matches = fragA.GetSubstructMatches(
-            mcsA
-        )  # get all possible matches with fragment A
-        mcsA_mols = [
-            add_coordinates(fragA, mcsA, matches) for matches in mcsA_matches
-        ]  # for each, add coordinates
+        # identify the atoms that came from fragment A
+        mcsA = self._get_mcs(merge_mol, fragA)
+        # get all possible matches with fragment A
+        mcsA_matches = fragA.GetSubstructMatches(mcsA)
+        # for each, add coordinates
+        mcsA_mols = [add_coordinates(fragA, mcsA, matches) for matches in mcsA_matches]
 
         # substructure match for fragment B
         synthB = remove_xe(synth)  # remove the xenon from the synthon
@@ -269,12 +263,10 @@ class EmbeddingFilter(Filter_generic):
         ref_mols = []  # store ref molecules with different coordinates
         for _mcsA_mol in mcsA_mols:
             for _synthB_mol in synthB_mols:
-                mcsA_mol, synthB_mol = self._check_overlap(
-                    _mcsA_mol, _synthB_mol
-                )  # check if atoms overlap
-                ref_mol = Chem.CombineMols(
-                    mcsA_mol, synthB_mol
-                )  # combine substructures to get ref molecule
+                # check if atoms overlap
+                mcsA_mol, synthB_mol = self._check_overlap(_mcsA_mol, _synthB_mol)
+                # combine substructures to get ref molecule
+                ref_mol = Chem.CombineMols(mcsA_mol, synthB_mol)
                 ref_mols.append(ref_mol)
 
         # Get substructure matches for merge and embed with all sets of coordinates
@@ -314,18 +306,22 @@ class EmbeddingFilter(Filter_generic):
         mol_energy = AllChem.UFFGetMoleculeForceField(mol).CalcEnergy()
         return mol_energy
 
-    def calc_unconstrained_energy(self, og_mol: Mol) -> float:
+    def calc_unconstrained_energy(
+        self, og_mol: Mol, n_conf: int = config_filter.N_CONFORMATIONS
+    ) -> float:
         """
         Create ten unconstrained conformations for each molecule and calculate the energy.
 
         :param og_mol: the original merge without coordinates added
         :type og_mol: RDKit molecule
+        :param n_conf: the number of unconstrained conformations to generate
+        :type n_conf: int
 
         :return: the average of the unconstrained energies
         :rtype: float
         """
         unconstrained_energies = []
-        for i in range(50):  # generate 50 conformations and calculate energy
+        for i in range(n_conf):  # generate conformations and calculate energy
             mol = Chem.Mol(og_mol)
             AllChem.EmbedMolecule(mol)
             AllChem.UFFOptimizeMolecule(mol)
@@ -367,18 +363,17 @@ class EmbeddingFilter(Filter_generic):
         synthon = Chem.MolFromSmiles(synthon)
         embedded_mols = self.embedding(fragA, fragB, merge, synthon)
 
+        result, embedded = False, None
         if len(embedded_mols) == 0:
             result = False
             embedded = None
 
         else:
             for embedded_mol in embedded_mols:
-                const_energy = self.calc_energy(
-                    embedded_mol
-                )  # energy of constrained conformation
-                unconst_energy = self.calc_unconstrained_energy(
-                    merge
-                )  # energy of avg unconstrained conformation
+                # energy of constrained conformation
+                const_energy = self.calc_energy(embedded_mol)
+                # energy of avg unconstrained conformation
+                unconst_energy = self.calc_unconstrained_energy(merge)
                 # if the energy of the constrained conformation is less, then pass filter
                 if const_energy <= unconst_energy:
                     result = True

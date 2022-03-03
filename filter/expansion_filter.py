@@ -5,10 +5,11 @@ Used to filter out compounds that look like elaborations rather than merges.
 from typing import Tuple
 
 from filter.config_filter import config_filter
+from filter.embedding_filter import remove_xe
 from filter.generic_filter import Filter_generic
 from joblib import Parallel, delayed
 from rdkit import Chem
-from rdkit.Chem import AllChem, Mol, rdFMCS
+from rdkit.Chem import Lipinski, Mol, rdFMCS
 
 # Function has been massively simplified; may need more testing
 
@@ -44,7 +45,13 @@ class ExpansionFilter(Filter_generic):
         self.results = None
 
     @staticmethod
-    def _calc_mcs(fragment: Mol, merge: Mol) -> Mol:
+    def _get_mol(mol: Mol) -> Mol:
+        """
+        Get mol from SMILES (MCS seems to fail for equivalent unaligned molecules otherwise...)
+        """
+        return Chem.MolFromSmiles(Chem.MolToSmiles(mol))
+
+    def _calc_mcs(self, fragment: Mol, merge: Mol) -> Mol:
         """Function checks if there is a MCS between fragment A, B and the merge.
         Returns the molecule if there is and returns None if not.
 
@@ -54,59 +61,87 @@ class ExpansionFilter(Filter_generic):
         :return: the MCS molecule or None
         :rtype: RDKit molecule or None
         """
-        mcs = rdFMCS.FindMCS([fragment, merge], completeRingsOnly=True)
-        print('MCS', mcs)
+        mcs = rdFMCS.FindMCS(
+            [self._get_mol(fragment), self._get_mol(merge)], completeRingsOnly=True
+        )
         mcs_mol = Chem.MolFromSmarts(mcs.smartsString)
         Chem.SanitizeMol(mcs_mol)
         return mcs_mol
 
+    @staticmethod
+    def _atom_remover(mol: Mol, pattern: Mol):
+        """
+        Removes single MCS instead of deleting every instance of the substructure.
+        """
+        matches = mol.GetSubstructMatches(pattern)
+        if not matches:
+            return [Chem.Mol(mol)]
+
+        all_res = []
+        for match in matches:
+            res = Chem.RWMol(mol)
+            res.BeginBatchEdit()
+            for aid in match:
+                res.RemoveAtom(aid)
+            res.CommitBatchEdit()
+            Chem.SanitizeMol(res)
+            all_res.append(res)
+
+        return all_res
+
+    @staticmethod
+    def _check_synthon_mcs(
+        mcs: Mol, min_atoms: int = config_filter.N_MCS_ATOMS
+    ) -> bool:
+        """
+        Check if any non-carbon atoms OR if atom count >3.
+
+        :param mcs: mcs mol
+        :type mcs: RDKit molecule
+
+        :return: whether molecule passes
+        :rtype: bool
+        """
+        num_atoms = Lipinski.HeavyAtomCount(mcs)
+        if num_atoms >= min_atoms:
+            return True
+        else:
+            return False
+
     def filter_smi(
         self,
         smiles: str,
+        synthon: str,
         fragmentA: Mol,
         fragmentB: Mol,
-        volume_threshold: float = config_filter.FRAGA_VOLUME,
     ) -> bool:
         """
         Checks if molecule resemble expansions of fragment A (where fragment B is not contributing
-        anything unique to the merge). Calculates the MCS between fragment A and the merge. If the MCS
-        accounts for >90% the volume of the merge, the function checks whether the remaining part
-        is from fragment B. If not, the molecule is rejected. If it is from fragment B, the molecule
-        passes.
+        anything unique to the merge). Calculates the MCS between fragment A and the merge. Looks at the remainder
+        of the merge and checks whether the MCS with the synthon is sensible (so fragment B has made a contribution -
+        here if atom count is at least 3).
 
         :param smiles: smiles string of the merge
         :type smiles: str
+        :param synthon: smiles string of the synthon
+        :type synthon: str
         :param fragmentA: fragment A molecule
         :type fragmentA: RDKit molecule
         :param fragmentB: fragment B molecule
         :type fragmentB: RDKit molecule
-        :volume_threshold: the max proportion of volume accounted for by fragment A
-        :type volume_threshold: float
 
         :return: whether molecule passes (True) or fails (False) filter
         :rtype: bool
         """
         merge = Chem.MolFromSmiles(smiles)
         mcs = self._calc_mcs(fragmentA, merge)
-
-        AllChem.EmbedMolecule(merge)
-        AllChem.EmbedMolecule(mcs)
-        merge_vol = AllChem.ComputeMolVolume(merge)
-        mcs_vol = AllChem.ComputeMolVolume(mcs)
-        print((mcs_vol / merge_vol))
-        if (mcs_vol / merge_vol) > volume_threshold:  # if mcs account for > 90%
-            print('Volume > 90%')
-            non_mcs = AllChem.DeleteSubstructs(merge, mcs)
-            match = fragmentB.HasSubstructMatch(non_mcs)
-            print(match)
-            if match:
-                result = True
-            else:
-                result = False
-
-        else:
-            print('Volume < 90%')
-            result = True
+        mcs_removed_mols = self._atom_remover(merge, mcs)
+        synthon = remove_xe(Chem.MolFromSmiles(synthon))
+        result = False
+        for mol in mcs_removed_mols:
+            synthon_mcs = self._calc_mcs(mol, synthon)
+            if synthon_mcs:
+                result = self._check_synthon_mcs(synthon_mcs)
 
         return result
 
