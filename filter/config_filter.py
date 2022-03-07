@@ -11,8 +11,8 @@ class Config_filter(metaclass=Singleton):
         # WORKING_DIR=os.path.join(os.getcwd(), "data"),
         N_CPUS_FILTER_PAIR=os.cpu_count(),
         # FOR FILTERING THE MERGES POST-DATABASE QUERY
-        FILTER_PIPELINE=["DescriptorFilter", "EmbeddingFilter", "OverlapFilter"],
-        SCORING_PIPELINE=["IfpScore", "SucosScore"],  # 'IfpScore'
+        FILTER_PIPELINE=["DescriptorFilter", "ExpansionFilter", "EmbeddingFilter", "OverlapFilter", "FragmensteinFilter"],
+        SCORING_PIPELINE=["IfpScore", "SuCOSScore"],  # 'IfpScore'
         PIPELINE_DICT={  # used to help import the classes in filter_pipeline.py
             "DescriptorFilter": "filter.descriptor_filter",
             "EmbeddingFilter": "filter.embedding_filter",
@@ -20,7 +20,7 @@ class Config_filter(metaclass=Singleton):
             "OverlapFilter": "filter.overlap_filter",
             "FragmensteinFilter": "filter.fragmenstein_filter",
             "IfpScore": "filter.ifp_score",
-            "SucosScore": "filter.sucos_score"
+            "SuCOSScore": "filter.sucos_score"
         },
         # PARAMETERS INVOLVED IN INDIVIDUAL FILTERS
         N_MCS_ATOMS=3,  # expansion_filter.py; minimum number of atoms contributed from fragment B

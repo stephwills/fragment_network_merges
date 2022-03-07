@@ -9,6 +9,8 @@ from abc import ABC, abstractmethod
 from Bio.PDB import Select
 from Bio.PDB.PDBIO import PDBIO
 from Bio.PDB.PDBParser import PDBParser
+from filter.config_filter import config_filter
+from joblib import Parallel, delayed
 from rdkit.Chem import rdmolfiles
 
 
@@ -16,6 +18,7 @@ class ResSelect(Select):
     """
     Class to remove ligand 'residue' from pdb structure.
     """
+
     def accept_residue(self, residue):
         if residue.id[0] == "H_LIG":
             return False
@@ -72,16 +75,15 @@ class Score_generic(ABC):
         for k, v in kwargs.items():
             setattr(self, k, v)
 
-    def _remove_ligand(self):
+    def _remove_ligand(self, pdb_file):
         """
         Function uses BioPython to read in pdb structure, remove the ligand
         and save to a new file in the same directory.
         """
-        self.apo_files = []
-        for pdb_file in self.holo_files:
+        new_filename = pdb_file.replace(".pdb", "_nolig.pdb")
+        if not os.path.exists(new_filename):
             parser = PDBParser(PERMISSIVE=1)
             structure = parser.get_structure("pdb", pdb_file)
-            new_filename = pdb_file.replace(".pdb", "_nolig.pdb")
 
             io = PDBIO()
             io.set_structure(structure)
@@ -90,14 +92,24 @@ class Score_generic(ABC):
                 for chain in model:
                     for residue in chain:
                         io.save(new_filename, ResSelect())
-            self.apo_files.append(new_filename)
+
+            print("ligand removed")
+        return new_filename
+
+    def get_apo_files(self, cpus: int = config_filter.N_CPUS_FILTER_PAIR):
+        """
+        Get the apo files by removing ligand from holo files.
+        """
+        self.apo_files = Parallel(n_jobs=cpus, backend="multiprocessing")(
+            delayed(self._remove_ligand)(holo_file) for holo_file in self.holo_files
+        )
 
     def move_apo_files(self):
         """
         Move the apo files to the output directory
         """
         for _name, pdb_file in zip(self.names, self.apo_files):
-            name = _name.replace('_', '-')
+            name = _name.replace("_", "-")
             fname = os.path.basename(pdb_file)
             new_path = os.path.join(self.out_pair_dir, name, fname)
             shutil.move(pdb_file, new_path)
