@@ -118,6 +118,9 @@ class FilterPipeline:
                 f"{len(failed_merges)} merges have already been filtered. {len(self.smis)} merges remaining."
             )
 
+        if os.path.exists(self.timings_fpath):
+            self.timings = load_json(self.timings_fpath)
+
     def _remove_failed(self, filter_name: str, working_dir=config_filter.WORKING_DIR):
         """
         Remove the failed molecules from the list of SMILES/synthons/mols to pass into the next filter.
@@ -217,12 +220,13 @@ class FilterPipeline:
                 step
             )  # remove failed mols from the smiles/synthon/mol lists
             n_removed = n_smi - len(self.smis)
-            timings_dict = {
-                "time": round(end - start, 2),
-                "n_run": n_smi,
-                "n_removed": n_removed,
-            }  # timings to file
-            self.timings[step] = timings_dict
+            if step not in self.timings.keys():
+                timings_dict = {
+                    "time": round(end - start, 2),
+                    "n_run": n_smi,
+                    "n_removed": n_removed,
+                }  # timings to file
+                self.timings[step] = timings_dict
             self._write_log()
             print(
                 f"{n_removed} mols removed by {step}. {len(self.smis)} mols remaining."
@@ -236,6 +240,8 @@ class FilterPipeline:
             or self.holo_files
             or self.apo_files
         ):
+            start = time.time()
+            print("Beginning scoring")
 
             for step in self.score_steps:
                 module = config_filter.PIPELINE_DICT[step]  # retrieve module name
@@ -260,6 +266,14 @@ class FilterPipeline:
                 )
                 self.score_dict[step] = score.score_all()
                 print(f"Scoring metric {step} run on filtered merges.")
+                if step not in self.timings.keys():
+                    end = time.time()
+                    timings_dict = {
+                        "time": round(end - start, 2),
+                        "n_scored": len(self.smis),
+                    }  # timings to file
+                    self.timings[step] = timings_dict
+                self._write_log()
                 self._move_output()
 
     def return_results(self):
@@ -368,10 +382,10 @@ def main():
     results, _ = pipeline.return_results()
 
     # save in json files
-    filtered_fname = merge + '_filtered.json'
+    filtered_fname = merge + "_filtered.json"
     filtered_fpath = os.path.join(args.output_dir, args.target, merge, filtered_fname)
 
-    with open(filtered_fpath, 'w') as f:
+    with open(filtered_fpath, "w") as f:
         json.dump(results, f)
 
 

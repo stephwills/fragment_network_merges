@@ -229,7 +229,8 @@ class IfpScore(Score_generic):
     def score_all(self, cpus: int = config_filter.N_CPUS_FILTER_PAIR) -> list:
         if not self.apo_files:
             # if no apo files, remove ligand from holo files to create apo files
-            self._remove_ligand()
+            print("Removing ligands")
+            self.get_apo_files()
 
         self.scores = Parallel(n_jobs=cpus, backend="multiprocessing")(
             delayed(self.score_mol)(mol_file, self.fragmentA, self.fragmentB, apo_file)

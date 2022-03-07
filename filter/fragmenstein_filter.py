@@ -15,6 +15,7 @@ from filter.generic_filter import Filter_generic
 from fragmenstein import Victor
 from rdkit import Chem
 from rdkit.Chem import rdmolfiles
+from merge.preprocessing import load_json
 
 
 class FragmensteinFilter(Filter_generic):
@@ -47,6 +48,24 @@ class FragmensteinFilter(Filter_generic):
         )
         self.results = None
         self.timings = None
+        self.errors = None
+        self.fragmenstein_timings_fpath = os.path.join(self.work_pair_dir, f"{self.merge}_fragmenstein_timings.json")
+        self.fragmenstein_errors_fpath = os.path.join(
+                                self.work_pair_dir, f"{self.merge}_fragmenstein_errors.json"
+                            )
+
+    def _check_run(self, dict_type):
+        """
+        Check for existing timings file.
+        """
+        if dict_type == 'timings':
+            if os.path.exists(self.fragmenstein_timings_fpath):
+                timings_dict = load_json(self.fragmenstein_timings_fpath)
+                return timings_dict
+        elif dict_type == 'errors':
+            if os.path.exists(self.fragmenstein_errors_fpath):
+                errors_dict = load_json(self.fragmenstein_errors_fpath)
+                return errors_dict
 
     def _copy_files(self, name: str, merge_dir: str):
         """
@@ -168,14 +187,13 @@ class FragmensteinFilter(Filter_generic):
             except Exception as e:
                 # if Fragmenstein fails, record the error and return filter fail
                 print(f"Fragmenstein failed for {name}: {str(e)}")
-                self.errors[name] = str(e)
-                with open(
-                        os.path.join(
-                            self.work_pair_dir, f"{self.merge}_fragmenstein_errors.json"
-                        ),
-                        "w",
-                ) as f:
-                    json.dump(self.errors.copy(), f)
+                if name not in self.errors.keys():
+                    self.errors[name] = str(e)
+                    with open(
+                            self.fragmenstein_errors_fpath,
+                            "w",
+                    ) as f:
+                        json.dump(self.errors.copy(), f)
                 queue.put([idx, False, None, None, None])
 
         data = self._get_dict(json_file)
@@ -216,15 +234,14 @@ class FragmensteinFilter(Filter_generic):
             # record timings for fragmenstein
             end = time.time()
             total = round(end - start, 2)
-            timings_dict = {'timings': total, 'result': result}
-            self.timings[name] = timings_dict
-            with open(
-                os.path.join(
-                    self.work_pair_dir, f"{self.merge}_fragmenstein_timings.json"
-                ),
-                "w",
-            ) as f:
-                json.dump(self.timings.copy(), f)
+            if name not in self.timings.keys():
+                timings_dict = {'timings': total, 'result': result}
+                self.timings[name] = timings_dict
+                with open(
+                    self.fragmenstein_timings_fpath,
+                    "w",
+                ) as f:
+                    json.dump(self.timings.copy(), f)
             queue.put([idx, result, minimised_mol, mol_file, holo_file])
 
         else:
@@ -246,8 +263,17 @@ class FragmensteinFilter(Filter_generic):
 
         queue = mp.Queue()
         manager = mp.Manager()
-        self.timings = manager.dict()
-        self.errors = manager.dict()
+        timings_dict = self._check_run('timings')
+        if timings_dict:
+            self.timings = manager.dict(timings_dict)
+        else:
+            self.timings = manager.dict()
+
+        errors_dict = self._check_run('errors')
+        if errors_dict:
+            self.errors = manager.dict(errors_dict)
+        else:
+            self.errors = manager.dict()
         processes = [
             mp.Process(target=self.filter_smi, args=(queue, name, smi))
             for name, smi in zip(self.names, self.smis)
