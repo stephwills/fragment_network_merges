@@ -11,8 +11,6 @@ from joblib import Parallel, delayed
 from rdkit import Chem
 from rdkit.Chem import Lipinski, Mol, rdFMCS
 
-# Function has been massively simplified; may need more testing
-
 
 class ExpansionFilter(Filter_generic):
     def __init__(
@@ -45,11 +43,40 @@ class ExpansionFilter(Filter_generic):
         self.results = None
 
     @staticmethod
+    def _sanitization(mol: Mol):
+        """
+        Do a partial sanitization of mol if normal sanitization not possible (e.g. due to valence errors after atom
+        removal or for MCS. Code from RDKit cookbook.
+        """
+        try:
+            Chem.SanitizeMol(mol)
+
+        except:
+            mol.UpdatePropertyCache(strict=False)
+            Chem.SanitizeMol(
+                mol,
+                Chem.SanitizeFlags.SANITIZE_FINDRADICALS
+                | Chem.SanitizeFlags.SANITIZE_KEKULIZE
+                | Chem.SanitizeFlags.SANITIZE_SETAROMATICITY
+                | Chem.SanitizeFlags.SANITIZE_SETCONJUGATION
+                | Chem.SanitizeFlags.SANITIZE_SETHYBRIDIZATION
+                | Chem.SanitizeFlags.SANITIZE_SYMMRINGS,
+                catchErrors=True,
+            )
+            mol.SetProp("partiallySanitized", "True")
+
+        return mol
+
+    @staticmethod
     def _get_mol(mol: Mol) -> Mol:
         """
-        Get mol from SMILES (MCS seems to fail for equivalent unaligned molecules otherwise...)
+        Get mol from SMILES (MCS seems to fail for equivalent unaligned molecules otherwise) unless maintaining
+        partial sanitization required.
         """
-        return Chem.MolFromSmiles(Chem.MolToSmiles(mol))
+        if "partiallySanitized" not in list(mol.GetPropNames()):
+            return Chem.MolFromSmiles(Chem.MolToSmiles(mol))
+        else:
+            return mol
 
     def _calc_mcs(self, fragment: Mol, merge: Mol) -> Mol:
         """Function checks if there is a MCS between fragment A, B and the merge.
@@ -65,29 +92,21 @@ class ExpansionFilter(Filter_generic):
             [self._get_mol(fragment), self._get_mol(merge)], completeRingsOnly=True
         )
         mcs_mol = Chem.MolFromSmarts(mcs.smartsString)
-        Chem.SanitizeMol(mcs_mol)
+        mcs_mol = self._sanitization(mcs_mol)
         return mcs_mol
 
     @staticmethod
-    def _atom_remover(mol: Mol, pattern: Mol):
-        """
-        Removes single MCS instead of deleting every instance of the substructure.
-        """
+    def _atom_remover(mol, pattern):
         matches = mol.GetSubstructMatches(pattern)
         if not matches:
-            return [Chem.Mol(mol)]
-
-        all_res = []
+            yield Chem.Mol(mol)
         for match in matches:
             res = Chem.RWMol(mol)
             res.BeginBatchEdit()
             for aid in match:
                 res.RemoveAtom(aid)
             res.CommitBatchEdit()
-            Chem.SanitizeMol(res)
-            all_res.append(res)
-
-        return all_res
+            yield res
 
     @staticmethod
     def _check_synthon_mcs(
@@ -135,10 +154,11 @@ class ExpansionFilter(Filter_generic):
         """
         merge = Chem.MolFromSmiles(smiles)
         mcs = self._calc_mcs(fragmentA, merge)
-        mcs_removed_mols = self._atom_remover(merge, mcs)
+        mcs_removed_mols = [x for x in self._atom_remover(merge, mcs)]
         synthon = remove_xe(Chem.MolFromSmiles(synthon))
         result = False
-        for mol in mcs_removed_mols:
+        for _mol in mcs_removed_mols:
+            mol = self._sanitization(_mol)
             synthon_mcs = self._calc_mcs(mol, synthon)
             if synthon_mcs:
                 result = self._check_synthon_mcs(synthon_mcs)
@@ -158,7 +178,7 @@ class ExpansionFilter(Filter_generic):
         :rtype: tuple
         """
         self.results = Parallel(n_jobs=cpus, backend="multiprocessing")(
-            delayed(self.filter_smi)(smi, self._fragmentA, self._fragmentB)
-            for smi in self.smis
+            delayed(self.filter_smi)(smi, synthon, self._fragmentA, self._fragmentB)
+            for smi, synthon in zip(self.smis, self.synthons)
         )
         return self.results, self.mols
