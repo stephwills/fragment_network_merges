@@ -135,8 +135,8 @@ data/
 
 # other
 .vscode
-tests/test_output/
-tests/test_working/
+tests/test_output/*
+tests/test_working/*
 test.pdb
 notebooks/
 filter/place_simsearch.py
