@@ -49,25 +49,27 @@ class FragmensteinFilter(Filter_generic):
         self.results = None
         self.timings = None
         self.errors = None
-        self.fragmenstein_timings_fpath = os.path.join(self.work_pair_dir, f"{self.merge}_fragmenstein_timings.json")
+        self.fragmenstein_timings_fpath = os.path.join(
+            self.work_pair_dir, f"{self.merge}_fragmenstein_timings.json"
+        )
         self.fragmenstein_errors_fpath = os.path.join(
-                                self.work_pair_dir, f"{self.merge}_fragmenstein_errors.json"
-                            )
+            self.work_pair_dir, f"{self.merge}_fragmenstein_errors.json"
+        )
 
     def _check_run(self, dict_type):
         """
         Check for existing timings file.
         """
-        if dict_type == 'timings':
+        if dict_type == "timings":
             if os.path.exists(self.fragmenstein_timings_fpath):
                 timings_dict = load_json(self.fragmenstein_timings_fpath)
                 return timings_dict
-        elif dict_type == 'errors':
+        elif dict_type == "errors":
             if os.path.exists(self.fragmenstein_errors_fpath):
                 errors_dict = load_json(self.fragmenstein_errors_fpath)
                 return errors_dict
 
-    def _copy_files(self, name: str, merge_dir: str):
+    def _copy_files(self, name: str, merge_dir: str, json_file, mol_file, holo_file):
         """
         If filter passes, move the working dir files to the output dir.
 
@@ -79,9 +81,10 @@ class FragmensteinFilter(Filter_generic):
         output_subdir = os.path.join(self.out_pair_dir, name)
         if not os.path.exists(output_subdir):
             os.mkdir(output_subdir)
-        dir_files = os.listdir(merge_dir)
-        workdir_files = [os.path.join(merge_dir, f) for f in dir_files]
-        outputdir_files = [os.path.join(output_subdir, f) for f in dir_files]
+
+        unmin_holo_file = os.path.join(merge_dir, f"{name}.holo_unminimised.pdb")
+        workdir_files = [json_file, mol_file, holo_file, unmin_holo_file]
+        outputdir_files = [os.path.join(output_subdir, os.path.basename(f)) for f in workdir_files]
         for workdir_file, outputdir_file in zip(workdir_files, outputdir_files):
             shutil.copy(workdir_file, outputdir_file)
 
@@ -159,7 +162,7 @@ class FragmensteinFilter(Filter_generic):
         start = time.time()
 
         name = self._get_name(merge_name)
-        idx = int(name.split('-')[-1])
+        idx = int(name.split("-")[-1])
         # check if directory already exists within the working directory to write intermediate files to
         merge_dir, already_run = self._check_merge_directory(name)
 
@@ -183,15 +186,17 @@ class FragmensteinFilter(Filter_generic):
             try:
                 # set up Victor and place the smiles
                 v = Victor(hits=hits, pdb_filename=self.proteinA, covalent_resi=residue)
-                v.place(smiles=smi, long_name=name)  # 'long_name' used to name the files
+                v.place(
+                    smiles=smi, long_name=name
+                )  # 'long_name' used to name the files
             except Exception as e:
                 # if Fragmenstein fails, record the error and return filter fail
                 print(f"Fragmenstein failed for {name}: {str(e)}")
                 if name not in self.errors.keys():
                     self.errors[name] = str(e)
                     with open(
-                            self.fragmenstein_errors_fpath,
-                            "w",
+                        self.fragmenstein_errors_fpath,
+                        "w",
                     ) as f:
                         json.dump(self.errors.copy(), f)
                 queue.put([idx, False, None, None, None])
@@ -200,12 +205,8 @@ class FragmensteinFilter(Filter_generic):
 
         if data:
             # retrieve the energy of the bound and unbound molecules and the comRMSD
-            G_bound = data["Energy"]["ligand_ref2015"][
-                "total_score"
-            ]  # energy of bound molecule
-            G_unbound = data["Energy"]["unbound_ref2015"][
-                "total_score"
-            ]  # energy of unbound molecule
+            G_bound = data["Energy"]["ligand_ref2015"]["total_score"]  # energy bound
+            G_unbound = data["Energy"]["unbound_ref2015"]["total_score"]  # unbound
             deltaG = G_bound - G_unbound  # calculate energy difference
             comRMSD = data["mRMSD"]  # RMSD between two fragments and merge
 
@@ -224,7 +225,7 @@ class FragmensteinFilter(Filter_generic):
             if (regarded == 2) & (deltaG < 0) & (comRMSD <= comRMSD_threshold):
                 result = True
                 # move the fragmenstein files to the output directory
-                self._copy_files(name, merge_dir)
+                self._copy_files(name, merge_dir, json_file, mol_file, holo_file)
 
             else:
                 result = False
@@ -235,7 +236,7 @@ class FragmensteinFilter(Filter_generic):
             end = time.time()
             total = round(end - start, 2)
             if name not in self.timings.keys():
-                timings_dict = {'timings': total, 'result': result}
+                timings_dict = {"timings": total, "result": result}
                 self.timings[name] = timings_dict
                 with open(
                     self.fragmenstein_timings_fpath,
@@ -263,13 +264,13 @@ class FragmensteinFilter(Filter_generic):
 
         queue = mp.Queue()
         manager = mp.Manager()
-        timings_dict = self._check_run('timings')
+        timings_dict = self._check_run("timings")
         if timings_dict:
             self.timings = manager.dict(timings_dict)
         else:
             self.timings = manager.dict()
 
-        errors_dict = self._check_run('errors')
+        errors_dict = self._check_run("errors")
         if errors_dict:
             self.errors = manager.dict(errors_dict)
         else:

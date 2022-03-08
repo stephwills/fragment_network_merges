@@ -28,20 +28,24 @@ def create_directories(
     :param output_dir: output directory path
     :type output_dir: str
     """
+    merge_dir = os.path.join(working_dir, "tempfiles", target, pair)
+
     if not os.path.exists(os.path.join(working_dir, "tempfiles")):
         os.mkdir(os.path.join(working_dir, "tempfiles"))
 
     if not os.path.exists(os.path.join(working_dir, "tempfiles", target)):
         os.mkdir(os.path.join(working_dir, "tempfiles", target))
 
-    if not os.path.exists(os.path.join(working_dir, "tempfiles", target, pair)):
-        os.mkdir(os.path.join(working_dir, "tempfiles", target, pair))
+    if not os.path.exists(merge_dir):
+        os.mkdir(merge_dir)
 
     if not os.path.exists(os.path.join(output_dir, target)):
         os.mkdir(os.path.join(output_dir, target))
 
     if not os.path.exists(os.path.join(output_dir, target, pair)):
         os.mkdir(os.path.join(output_dir, target, pair))
+
+    return merge_dir
 
 
 class FilterPipeline:
@@ -338,7 +342,7 @@ def main():
     fB = args.fragmentB
     merge = fA + "-" + fB
     merge = merge.replace("_", "-")
-    create_directories(args.target, merge, args.working_dir, args.output_dir)
+    merge_dir = create_directories(args.target, merge, args.working_dir, args.output_dir)
 
     # open json file containing merges
     merges_dict = load_json(args.merge_file)
@@ -387,6 +391,8 @@ def main():
 
     with open(filtered_fpath, "w") as f:
         json.dump(results, f)
+
+    shutil.rmtree(merge_dir)
 
 
 if __name__ == "__main__":
