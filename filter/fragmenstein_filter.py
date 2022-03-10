@@ -1,9 +1,6 @@
 """Place and filter the smiles with Fragmenstein"""
 
 import json
-import multiprocessing as mp
-import multiprocessing.queues as mpq
-from multiprocessing.queues import Queue
 import os
 import shutil
 import time
@@ -13,9 +10,10 @@ import pyrosetta
 from filter.config_filter import config_filter
 from filter.generic_filter import Filter_generic
 from fragmenstein import Victor
+from merge.preprocessing import load_json
+from pebble import ProcessPool
 from rdkit import Chem
 from rdkit.Chem import rdmolfiles
-from merge.preprocessing import load_json
 
 
 class FragmensteinFilter(Filter_generic):
@@ -84,7 +82,9 @@ class FragmensteinFilter(Filter_generic):
 
         unmin_holo_file = os.path.join(merge_dir, f"{name}.holo_unminimised.pdb")
         workdir_files = [json_file, mol_file, holo_file, unmin_holo_file]
-        outputdir_files = [os.path.join(output_subdir, os.path.basename(f)) for f in workdir_files]
+        outputdir_files = [
+            os.path.join(output_subdir, os.path.basename(f)) for f in workdir_files
+        ]
         for workdir_file, outputdir_file in zip(workdir_files, outputdir_files):
             shutil.copy(workdir_file, outputdir_file)
 
@@ -125,6 +125,10 @@ class FragmensteinFilter(Filter_generic):
             return merge_dir, False
 
     @staticmethod
+    def _get_idx(name: str) -> str:
+        return int(name.split("-")[-1])
+
+    @staticmethod
     def _get_name(name: str) -> str:
         """
         Get the merge names used in the file paths - Fragmenstein replaces the underscores with hyphens.
@@ -137,7 +141,6 @@ class FragmensteinFilter(Filter_generic):
 
     def filter_smi(
         self,
-        queue: Queue,
         merge_name: str,
         smi: str,
         comRMSD_threshold: float = config_filter.COM_RMSD,
@@ -162,7 +165,7 @@ class FragmensteinFilter(Filter_generic):
         start = time.time()
 
         name = self._get_name(merge_name)
-        idx = int(name.split("-")[-1])
+        idx = self._get_idx(name)
         # check if directory already exists within the working directory to write intermediate files to
         merge_dir, already_run = self._check_merge_directory(name)
 
@@ -199,7 +202,7 @@ class FragmensteinFilter(Filter_generic):
                         "w",
                     ) as f:
                         json.dump(self.errors.copy(), f)
-                queue.put([idx, False, None, None, None])
+                return idx, False, None, None, None
 
         data = self._get_dict(json_file)
 
@@ -243,56 +246,72 @@ class FragmensteinFilter(Filter_generic):
                     "w",
                 ) as f:
                     json.dump(self.timings.copy(), f)
-            queue.put([idx, result, minimised_mol, mol_file, holo_file])
+            return idx, result, minimised_mol, mol_file, holo_file
 
         else:
-            queue.put([idx, False, None, None, None])
+            return idx, False, None, None, None
 
     def filter_all(
-        self, cpus: int = config_filter.N_CPUS_FILTER_PAIR
+        self,
+        cpus: int = config_filter.N_CPUS_FILTER_PAIR,
+        timeout: int = config_filter.TIMEOUT,
     ) -> Tuple[list, list]:
         """
         Runs the Fragmenstein filter on all the SMILES in parallel.
 
         :param cpus: number of CPUs for parallelization
         :type cpus: int
+        :param timeout: how long to let Fragmenstein run for (seconds)
+        :type timeout: int
 
         :return: list of results (True or False); list of mols (RDKit molecules)
         :rtype: tuple
         """
         # create multiprocessing Process to implement timeout
 
-        queue = mp.Queue()
-        manager = mp.Manager()
+        # manager = mp.Manager()
         timings_dict = self._check_run("timings")
         if timings_dict:
-            self.timings = manager.dict(timings_dict)
+            self.timings = timings_dict
         else:
-            self.timings = manager.dict()
+            self.timings = {}
 
         errors_dict = self._check_run("errors")
         if errors_dict:
-            self.errors = manager.dict(errors_dict)
+            self.errors = errors_dict
         else:
-            self.errors = manager.dict()
-        processes = [
-            mp.Process(target=self.filter_smi, args=(queue, name, smi))
-            for name, smi in zip(self.names, self.smis)
-        ]
+            self.errors = {}
 
-        res = []
-        for p in processes:
-            p.start()
-
-        for p in processes:
-            p.join()
-
-        for p in processes:
-            try:
-                r = queue.get(timeout=5)  # timeout set to 10 minutes
-                res.append(r)
-            except mpq.Empty:
-                p.terminate()
+        with ProcessPool(max_workers=cpus) as pool:
+            mapped = pool.map(self.filter_smi, self.names, self.smis, timeout=timeout)
+            iterator = mapped.result()
+            res = []
+            index = 0  # keep track of which merge run (for recording errors)
+            while True:
+                try:
+                    result = next(iterator)
+                    res.append(result)
+                except StopIteration:
+                    break
+                except Exception as error:
+                    error_name = self.names[index]
+                    error_smi = self.smis[index]
+                    print(
+                        f"Error for merge {error_name}, smiles {error_smi}"
+                    )
+                    if error_name not in self.errors.keys():
+                        self.errors[error_name] = error
+                        with open(
+                            self.fragmenstein_errors_fpath,
+                            "w",
+                        ) as f:
+                            json.dump(self.errors.copy(), f)
+                    name = self._get_name(error_name)
+                    idx = self._get_idx(name)
+                    result = (idx, False, None, None, None)
+                    res.append(result)
+                finally:
+                    index += 1
 
         res = sorted(res, key=lambda tup: tup[0])
         self.results = [r[1] for r in res]
