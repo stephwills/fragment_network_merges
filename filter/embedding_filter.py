@@ -170,7 +170,21 @@ class EmbeddingFilter(Filter_generic):
         """
         mcs = rdFMCS.FindMCS([full_mol, fragment], completeRingsOnly=True)
         mcs_mol = Chem.MolFromSmarts(mcs.smartsString)
-        Chem.SanitizeMol(mcs_mol)
+        try:
+            Chem.SanitizeMol(mcs_mol)
+        except:
+            print('partial sanitization')
+            mcs_mol.UpdatePropertyCache(strict=False)
+            Chem.SanitizeMol(
+                mcs_mol,
+                Chem.SanitizeFlags.SANITIZE_FINDRADICALS
+                | Chem.SanitizeFlags.SANITIZE_KEKULIZE
+                | Chem.SanitizeFlags.SANITIZE_SETAROMATICITY
+                | Chem.SanitizeFlags.SANITIZE_SETCONJUGATION
+                | Chem.SanitizeFlags.SANITIZE_SETHYBRIDIZATION
+                | Chem.SanitizeFlags.SANITIZE_SYMMRINGS,
+                catchErrors=True,
+            )
         return mcs_mol
 
     @staticmethod
