@@ -4,6 +4,7 @@ import json
 import os
 import shutil
 import time
+from concurrent.futures import TimeoutError
 from typing import Tuple
 
 import pyrosetta
@@ -293,14 +294,31 @@ class FragmensteinFilter(Filter_generic):
                     res.append(result)
                 except StopIteration:
                     break
-                except Exception as error:
+                except TimeoutError:
+                    error_name = self.names[index]
+                    error_smi = self.smis[index]
+                    print(
+                        f"Timeout error for merge {error_name}, smiles {error_smi}"
+                    )
+                    if error_name not in self.errors.keys():
+                        self.errors[error_name] = 'Timeout Error'
+                        with open(
+                            self.fragmenstein_errors_fpath,
+                            "w",
+                        ) as f:
+                            json.dump(self.errors.copy(), f)
+                    name = self._get_name(error_name)
+                    idx = self._get_idx(name)
+                    result = (idx, False, None, None, None)
+                    res.append(result)
+                except Exception:
                     error_name = self.names[index]
                     error_smi = self.smis[index]
                     print(
                         f"Error for merge {error_name}, smiles {error_smi}"
                     )
                     if error_name not in self.errors.keys():
-                        self.errors[error_name] = error
+                        self.errors[error_name] = 'Non-timeout error'
                         with open(
                             self.fragmenstein_errors_fpath,
                             "w",
