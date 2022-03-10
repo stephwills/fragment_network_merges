@@ -5,6 +5,7 @@ import os
 import shutil
 import time
 from concurrent.futures import TimeoutError
+from multiprocessing import Manager
 from typing import Tuple
 
 import pyrosetta
@@ -268,20 +269,18 @@ class FragmensteinFilter(Filter_generic):
         :return: list of results (True or False); list of mols (RDKit molecules)
         :rtype: tuple
         """
-        # create multiprocessing Process to implement timeout
-
-        # manager = mp.Manager()
+        manager = Manager()
         timings_dict = self._check_run("timings")
         if timings_dict:
-            self.timings = timings_dict
+            self.timings = manager.dict(timings_dict)
         else:
-            self.timings = {}
+            self.timings = manager.dict()
 
         errors_dict = self._check_run("errors")
         if errors_dict:
-            self.errors = errors_dict
+            self.errors = manager.dict(errors_dict)
         else:
-            self.errors = {}
+            self.errors = manager.dict()
 
         with ProcessPool(max_workers=cpus) as pool:
             mapped = pool.map(self.filter_smi, self.names, self.smis, timeout=timeout)
