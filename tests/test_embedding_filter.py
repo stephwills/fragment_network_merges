@@ -49,21 +49,21 @@ class TestEmbeddingFilter(unittest.TestCase):
         test_unconstrained_energy = round(filter.calc_unconstrained_energy(mol), 2)
         self.assertEqual(energy, test_unconstrained_energy)
 
-    def test_filter_passing(self):
+    def test_filter_failing(self):
         """Checks that the filter correctly identifies molecules that can be embedded"""
         filter = EmbeddingFilter(
             [smi], [synthon], fragmentA_path, fragmentB_path_passing
         )
         passing_case = filter.filter_smi(smi, fragmentA, fragmentB_passing, synthon)
-        self.assertEqual(passing_case[0], True)
+        self.assertEqual(passing_case[0], False)
 
-    def test_filter_failing(self):
+    def test_filter_passing(self):
         """Checks that the filter correctly identifies molecules that can be embedded"""
         filter = EmbeddingFilter(
             [smi], [synthon], fragmentA_path, fragmentB_path_failing
         )
         failing_case = filter.filter_smi(smi, fragmentA, fragmentB_failing, synthon)
-        self.assertEqual(failing_case[0], False)
+        self.assertEqual(failing_case[0], True)
 
 
 if __name__ == "__main__":

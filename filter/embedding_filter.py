@@ -173,7 +173,6 @@ class EmbeddingFilter(Filter_generic):
         try:
             Chem.SanitizeMol(mcs_mol)
         except:
-            print('partial sanitization')
             mcs_mol.UpdatePropertyCache(strict=False)
             Chem.SanitizeMol(
                 mcs_mol,
@@ -284,11 +283,11 @@ class EmbeddingFilter(Filter_generic):
                 ref_mols.append(ref_mol)
 
         # Get substructure matches for merge and embed with all sets of coordinates
-        merge_matches = merge_mol.GetSubstructMatches(ref_mols[0])
+        all_merge_matches = [merge_mol.GetSubstructMatches(ref_mol) for ref_mol in ref_mols]
         embedded_mols = []
         n_embeddings = 0
-        for matches in merge_matches:
-            for ref_mol in ref_mols:
+        for merge_matches, ref_mol in zip(all_merge_matches, ref_mols):
+            for matches in merge_matches:
                 n_embeddings += 1
                 merge = Chem.RWMol(merge_mol)
                 # merge = Chem.AddHs(merge)
