@@ -204,13 +204,15 @@ class MergerFinder_generic(ABC):
 
             if len(fA_matches) > 0 and len(fB_matches) > 0:
                 res = []
-                for fA_match, fB_match in zip(fA_matches, fB_matches):
-                    distance = rdShapeHelpers.ShapeProtrudeDist(fA_match, fB_match)
-                    protrusion_threshold = 1 - synthon_overlap
-                    if protrusion_threshold >= distance:
-                        res.append(True)
-                    else:
-                        res.append(False)
+                for fA_match in fA_matches:
+                    for fB_match in fB_matches:
+                        distance = rdShapeHelpers.ShapeProtrudeDist(fA_match, fB_match)
+                        print(distance)
+                        protrusion_threshold = 1 - synthon_overlap
+                        if distance >= protrusion_threshold:
+                            res.append(True)
+                        else:
+                            res.append(False)
 
                 if False not in res:
                     filtered_synthons.append(synthon)

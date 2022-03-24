@@ -2,6 +2,7 @@
 import unittest
 
 from merge.find_merges_neo4j import MergerFinder_neo4j
+from merge.preprocessing import get_mol
 from rdkit import Chem
 
 merger = MergerFinder_neo4j()
@@ -49,6 +50,13 @@ class TestFindMerges(unittest.TestCase):
         target = "nsp13"
         output_dir = "tests/test_output"
         merger.expand_fragmentA(name_pairs, target, output_dir=output_dir)
+
+    def test_substructure_check(self):
+        synthons = ['c1ccccc1']
+        fragmentA = get_mol('nsp13', 'x0176_0B', True)
+        fragmentB = get_mol('nsp13', 'x0276_0B', True)
+        filtered_synthons = merger.substructure_check(synthons, fragmentA, fragmentB)
+        self.assertEqual(filtered_synthons, [])
 
 
 if __name__ == "__main__":
