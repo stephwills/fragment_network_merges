@@ -6,11 +6,24 @@ import shutil
 import unittest
 
 from filter.config_filter import config_filter
-from filter.filter_pipeline import FilterPipeline, create_directories, parse_args
-from merge.preprocessing import get_merges, get_mol, get_protein, load_json
+from filter.filter_pipeline import (FilterPipeline, create_directories,
+                                    parse_args)
+from utils.utils import get_merges, get_mol, get_protein, load_json
 
 filtered_path = "tests/test_output/x0034_0B-x0311_0B_filtered.json"
 failed_path = "tests/test_output/x0034_0B-x0311_0B_failures.json"
+
+
+def remove_files():
+    w_dir = os.path.join("tests", "test_working")
+    o_dir = os.path.join("tests", "test_output")
+    for dir in [w_dir, o_dir]:
+        for file in os.listdir(dir):
+            path = os.path.join(dir, file)
+            try:
+                shutil.rmtree(path)
+            except OSError:
+                os.remove(path)
 
 
 class TestFilterPipeline(unittest.TestCase):
@@ -22,12 +35,9 @@ class TestFilterPipeline(unittest.TestCase):
         pair = "x1234_0B_x4567_0B"
         target = "target"
         create_directories(target, pair, working_dir, output_dir)
-        w_res = os.path.isdir(os.path.join(working_dir, "tempfiles", target, pair))
         o_res = os.path.isdir(os.path.join(output_dir, target, pair))
-        self.assertTrue(w_res)
         self.assertTrue(o_res)
-        shutil.rmtree(os.path.join(working_dir, "tempfiles"))
-        shutil.rmtree(os.path.join(output_dir, target))
+        remove_files()
 
     def test_check_run(self):
         pipeline = FilterPipeline(
@@ -59,16 +69,19 @@ class TestFilterPipeline(unittest.TestCase):
                 "failed_filter": "filter1",
             }
         }
-        with open(pipeline.failed_fpath, "w") as f:
+        print("£££")
+        failed_fpath = os.path.join(
+            pipeline.pair_output_dir, f"{pipeline.merge}_failures.json"
+        )
+        print(failed_fpath)
+        with open(failed_fpath, "w") as f:
             json.dump(json_dict, f)
 
         pipeline.check_run()
         smis = pipeline.smis
 
-        shutil.rmtree(os.path.join(os.path.join("tests", "test_working"), "tempfiles"))
-        shutil.rmtree(os.path.join(os.path.join("tests", "test_output"), "target"))
-
         self.assertEqual(smis, ["smiles1", "smiles3"])
+        remove_files()
 
     def test_parse_args(self):
         """
@@ -109,7 +122,7 @@ class TestFilterPipeline(unittest.TestCase):
         fA = "x0034_0B"
         fB = "x0311_0B"
         merge = fA + "_" + fB
-        merge = merge.replace('_', '-')
+        merge = merge.replace("_", "-")
         output_dir = os.path.join("tests", "test_output")
         working_dir = os.path.join("tests", "test_working")
         create_directories("nsp13", "x0034-0B-x0311-0B", working_dir, output_dir)
@@ -132,7 +145,12 @@ class TestFilterPipeline(unittest.TestCase):
         proteinB = get_protein(
             target, fB, fragalysis_dir=config_filter.FRAGALYSIS_DATA_DIR
         )
-        filter_steps = ["DescriptorFilter", "EmbeddingFilter", "OverlapFilter"]
+        filter_steps = [
+            "DescriptorFilter",
+            "ExpansionFilter",
+            "EmbeddingFilter",
+            "OverlapFilter",
+        ]
         score_steps = []
 
         # execute the pipeline
@@ -155,6 +173,7 @@ class TestFilterPipeline(unittest.TestCase):
         # check if dictionary (exact results will change depending on parameters in config file)
         self.assertIsInstance(results, dict)
         self.assertIsInstance(failures, dict)
+        remove_files()
 
     def test_filtering_2(self):
         """
@@ -196,6 +215,7 @@ class TestFilterPipeline(unittest.TestCase):
 
         self.assertIsInstance(results, dict)
         self.assertIsInstance(failures, dict)
+        remove_files()
 
     def test_scoring(self):
         """
@@ -238,8 +258,7 @@ class TestFilterPipeline(unittest.TestCase):
         self.assertIsInstance(results, dict)
         self.assertIsInstance(failures, dict)
 
-        shutil.rmtree(os.path.join(working_dir, "tempfiles"))
-        shutil.rmtree(os.path.join(output_dir, target))
+        remove_files()
 
 
 if __name__ == "__main__":

@@ -4,8 +4,8 @@ import argparse
 
 from merge.config_merge import config_merge
 from merge.find_merges import getFragmentNetworkSearcher
-from merge.preprocessing import (check_fragment_pairs, check_merges_run,
-                                 get_smiles)
+from merge.preprocessing import check_fragment_pairs, check_merges_run
+from utils.utils import get_smiles
 
 
 def preprocess_fragments(target, fragment_names, output_dir=None):
@@ -16,9 +16,7 @@ def preprocess_fragments(target, fragment_names, output_dir=None):
     fragmentNetworkSearcher = getFragmentNetworkSearcher()
 
     # get all the smiles of the fragments
-    print(fragment_names)
     fragment_smiles = [get_smiles(target, f) for f in fragment_names]
-    print(fragment_smiles)
 
     # check that the smiles exist as nodes in the network
     fragment_smiles, fragment_names = fragmentNetworkSearcher.filter_for_nodes(
@@ -43,7 +41,7 @@ def main():
     parser = argparse.ArgumentParser(
         epilog="""
     Example
-    python -m merge.run_database_query -t nsp13 -f x0034_0B x0176_0B x0212_0B -o data/example_folder"""
+    python -m merge.query -t nsp13 -f x0034_0B x0176_0B x0212_0B -o data/example_folder"""
     )
     parser.add_argument(
         "-t", "--target", help="the protein target (e.g. nsp13)", required=True

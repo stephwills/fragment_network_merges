@@ -1,6 +1,6 @@
 import os
 
-from merge.utils import Singleton
+from utils.singleton import Singleton
 
 
 class Config_filter(metaclass=Singleton):
@@ -12,6 +12,7 @@ class Config_filter(metaclass=Singleton):
         N_CPUS_FILTER_PAIR=os.cpu_count(),
         # FOR FILTERING THE MERGES POST-DATABASE QUERY
         FILTER_PIPELINE=["DescriptorFilter", "ExpansionFilter", "EmbeddingFilter", "OverlapFilter", "FragmensteinFilter"],
+        #FILTER_PIPELINE=["EmbeddingFilterSS"],
         SCORING_PIPELINE=["IfpScore", "SuCOSScore"],  # 'IfpScore'
         PIPELINE_DICT={  # used to help import the classes in filter_pipeline.py
             "DescriptorFilter": "filter.descriptor_filter",
@@ -20,11 +21,12 @@ class Config_filter(metaclass=Singleton):
             "OverlapFilter": "filter.overlap_filter",
             "FragmensteinFilter": "filter.fragmenstein_filter",
             "IfpScore": "filter.ifp_score",
-            "SuCOSScore": "filter.sucos_score"
+            "SuCOSScore": "filter.sucos_score",
+            "EmbeddingFilterSS": "filter.embedding_filter_ss"  # for placing similarity search stuff
         },
         # PARAMETERS INVOLVED IN INDIVIDUAL FILTERS
         N_MCS_ATOMS=3,  # expansion_filter.py; minimum number of atoms contributed from fragment B
-        ENERGY_THRESHOLD=7,  # embedding_filter.py; ratio of energy of unconstrained vs constrained conformations,
+        ENERGY_THRESHOLD=7.0,  # embedding_filter.py; ratio of energy of unconstrained vs constrained conformations,
         N_CONFORMATIONS=50,  # embedding_filter.py; the number of unconstrained conformations to generate
         ATOM_CLASH_DIST=1.0,  # embedding_filter.py; min atom dist in the frag A/B substructures to be clashes/removed
         CLASH_DIST=0.16,  # overlap_filter.py; proportion of ligand overlapping with protein categorized as not fitting

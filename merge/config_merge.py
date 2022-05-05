@@ -1,6 +1,6 @@
 import os
 
-from merge.utils import Singleton
+from utils.singleton import Singleton
 
 
 class Config(metaclass=Singleton):

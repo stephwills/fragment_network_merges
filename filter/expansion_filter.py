@@ -2,23 +2,26 @@
 Used to filter out compounds that look like elaborations rather than merges.
 """
 
+import argparse
+import time
 from typing import Tuple
 
+from dm_job_utilities.dm_log import DmLog
 from filter.config_filter import config_filter
-from filter.embedding_filter import remove_xe
 from filter.generic_filter import Filter_generic
 from joblib import Parallel, delayed
 from rdkit import Chem
-from rdkit.Chem import Lipinski, Mol, rdFMCS
+from rdkit.Chem import Lipinski, Mol, rdmolfiles
+from utils.filter_utils import get_mcs, remove_xe
 
 
 class ExpansionFilter(Filter_generic):
     def __init__(
         self,
-        smis: list,
-        synthons: list,
-        fragmentA,
-        fragmentB,
+        smis=None,
+        synthons=None,
+        fragmentA=None,
+        fragmentB=None,
         proteinA=None,
         proteinB=None,
         merge=None,
@@ -43,31 +46,6 @@ class ExpansionFilter(Filter_generic):
         self.results = None
 
     @staticmethod
-    def _sanitization(mol: Mol):
-        """
-        Do a partial sanitization of mol if normal sanitization not possible (e.g. due to valence errors after atom
-        removal or for MCS. Code from RDKit cookbook.
-        """
-        try:
-            Chem.SanitizeMol(mol)
-
-        except:
-            mol.UpdatePropertyCache(strict=False)
-            Chem.SanitizeMol(
-                mol,
-                Chem.SanitizeFlags.SANITIZE_FINDRADICALS
-                | Chem.SanitizeFlags.SANITIZE_KEKULIZE
-                | Chem.SanitizeFlags.SANITIZE_SETAROMATICITY
-                | Chem.SanitizeFlags.SANITIZE_SETCONJUGATION
-                | Chem.SanitizeFlags.SANITIZE_SETHYBRIDIZATION
-                | Chem.SanitizeFlags.SANITIZE_SYMMRINGS,
-                catchErrors=True,
-            )
-            mol.SetProp("partiallySanitized", "True")
-
-        return mol
-
-    @staticmethod
     def _get_mol(mol: Mol) -> Mol:
         """
         Get mol from SMILES (MCS seems to fail for equivalent unaligned molecules otherwise) unless maintaining
@@ -78,25 +56,11 @@ class ExpansionFilter(Filter_generic):
         else:
             return mol
 
-    def _calc_mcs(self, fragment: Mol, merge: Mol) -> Mol:
-        """Function checks if there is a MCS between fragment A, B and the merge.
-        Returns the molecule if there is and returns None if not.
-
-        :param fragment:
-        :param merge:
-
-        :return: the MCS molecule or None
-        :rtype: RDKit molecule or None
-        """
-        mcs = rdFMCS.FindMCS(
-            [self._get_mol(fragment), self._get_mol(merge)], completeRingsOnly=True
-        )
-        mcs_mol = Chem.MolFromSmarts(mcs.smartsString)
-        mcs_mol = self._sanitization(mcs_mol)
-        return mcs_mol
-
     @staticmethod
     def _atom_remover(mol, pattern):
+        """
+        Removes atoms from molecule that match pattern.
+        """
         matches = mol.GetSubstructMatches(pattern)
         if not matches:
             yield Chem.Mol(mol)
@@ -114,12 +78,6 @@ class ExpansionFilter(Filter_generic):
     ) -> bool:
         """
         Check if any non-carbon atoms OR if atom count >3.
-
-        :param mcs: mcs mol
-        :type mcs: RDKit molecule
-
-        :return: whether molecule passes
-        :rtype: bool
         """
         num_atoms = Lipinski.HeavyAtomCount(mcs)
         if num_atoms >= min_atoms:
@@ -133,12 +91,13 @@ class ExpansionFilter(Filter_generic):
         synthon: str,
         fragmentA: Mol,
         fragmentB: Mol,
+        min_atoms: int = config_filter.N_MCS_ATOMS,
     ) -> bool:
         """
-        Checks if molecule resemble expansions of fragment A (where fragment B is not contributing
-        anything unique to the merge). Calculates the MCS between fragment A and the merge. Looks at the remainder
-        of the merge and checks whether the MCS with the synthon is sensible (so fragment B has made a contribution -
-        here if atom count is at least 3).
+        Checks if molecule resemble expansions of fragment A (where fragment B is not contributing anything unique to
+        the merge). Calculates the MCS between fragment A and the merge. Looks at the remainder of the merge and checks
+        whether the MCS with the synthon is sensible (so fragment B has made a contribution - here if atom count is at
+        least 3).
 
         :param smiles: smiles string of the merge
         :type smiles: str
@@ -148,25 +107,26 @@ class ExpansionFilter(Filter_generic):
         :type fragmentA: RDKit molecule
         :param fragmentB: fragment B molecule
         :type fragmentB: RDKit molecule
+        :param min_atoms: min number of atoms contributed from synthon
+        :type min_atoms: int
 
         :return: whether molecule passes (True) or fails (False) filter
         :rtype: bool
         """
         merge = Chem.MolFromSmiles(smiles)
-        mcs = self._calc_mcs(fragmentA, merge)
+        mcs = get_mcs(fragmentA, merge)
         mcs_removed_mols = [x for x in self._atom_remover(merge, mcs)]
         synthon = remove_xe(Chem.MolFromSmiles(synthon))
         result = False
-        for _mol in mcs_removed_mols:
-            mol = self._sanitization(_mol)
-            synthon_mcs = self._calc_mcs(mol, synthon)
+        for mol in mcs_removed_mols:
+            synthon_mcs = get_mcs(mol, synthon)
             if synthon_mcs:
                 result = self._check_synthon_mcs(synthon_mcs)
 
         return result
 
     def filter_all(
-        self, cpus: int = config_filter.N_CPUS_FILTER_PAIR
+        self, cpus: int = config_filter.N_CPUS_FILTER_PAIR, **kwargs
     ) -> Tuple[list, None]:
         """
         Runs the expansion filter on all the SMILES in parallel.
@@ -178,7 +138,91 @@ class ExpansionFilter(Filter_generic):
         :rtype: tuple
         """
         self.results = Parallel(n_jobs=cpus, backend="multiprocessing")(
-            delayed(self.filter_smi)(smi, synthon, self._fragmentA, self._fragmentB)
+            delayed(self.filter_smi)(smi, synthon, self._fragmentA, self._fragmentB, **kwargs)
             for smi, synthon in zip(self.smis, self.synthons)
         )
         return self.results, self.mols
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        epilog="""
+    python filter/expansion_filter.py --input_file data/toFilter.sdf --output_file results.sdf
+    --fragmentA_file nsp13-x0176_0B.mol --min_atoms 3
+    """
+    )
+    # command line args definitions
+    parser.add_argument(
+        "-i",
+        "--input_file",
+        required=True,
+        help="input sdf file containing molecules to filter",
+    )
+    parser.add_argument(
+        "-o",
+        "--output_file",
+        required=True,
+        help="output sdf file to write filtered SMILES",
+    )
+    parser.add_argument(
+        "-A", "--fragmentA_file", required=True, help="fragment A mol file"
+    )
+    parser.add_argument(
+        "-B", "--fragmentB_file", required=True, help="fragment B mol file"
+    )
+    parser.add_argument(
+        "-a",
+        "--min_atoms",
+        type=int,
+        default=3,
+        help="minimum atom contribution from fragment B",
+    )
+
+    args = parser.parse_args()
+
+    filter = ExpansionFilter()
+    DmLog.emit_event("expansion_filter: ", args)
+
+    start = time.time()
+    count = 0
+    hits = 0
+    errors = 0
+
+    fragmentA = rdmolfiles.MolFromMolFile(args.fragmentA_file)
+    fragmentB = rdmolfiles.MolFromMolFile(args.fragmentB_file)
+
+    with Chem.SDWriter(args.output_file) as w:
+        with Chem.SDMolSupplier(args.input_file) as suppl:
+            for mol in suppl:
+                if mol is None:
+                    continue
+                else:
+                    count += 1
+                    try:
+                        smi = Chem.MolToSmiles(mol)
+                        synthon = mol.GetProp("synthon")
+                        res = filter.filter_smi(
+                            smi, synthon, fragmentA, fragmentB, args.min_atoms
+                        )
+                        if res:
+                            hits += 1
+                            w.write(mol)
+                    except Exception as e:
+                        DmLog.emit_event(
+                            "Failed to process molecule", count, Chem.MolToSmiles(mol)
+                        )
+                        errors += 1
+
+    end = time.time()
+    duration_s = int(end - start)
+    if duration_s < 1:
+        duration_s = 1
+
+    DmLog.emit_event(
+        count, "inputs,", hits, "hits,", errors, "errors.", "Time (s):", duration_s
+    )
+    DmLog.emit_cost(count)
+
+
+if __name__ == "__main__":
+    main()

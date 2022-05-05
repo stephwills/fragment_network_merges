@@ -66,8 +66,8 @@ class Neo4jDriverWrapper(SearchSession_generic):
         :rtype: list
         """
         labels = set()
-        for record in tx.run(
-            "MATCH (fa:F2 {smiles: $smiles})-[e:FRAG*]->(f:F2) RETURN e", smiles=smiles
+        for record in tx.run(  # if set to unlimited number of hops, the queries seem to stall
+            "MATCH (fa:F2 {smiles: $smiles})-[e:FRAG*0..20]->(f:F2) RETURN e", smiles=smiles
         ):
             edges = record["e"]
             for edge in edges:

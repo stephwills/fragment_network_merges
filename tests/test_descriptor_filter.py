@@ -1,4 +1,4 @@
-"""Tests the descriptorvfilter script"""
+"""Tests the descriptor filter script"""
 
 import unittest
 
