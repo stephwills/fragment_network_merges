@@ -2,28 +2,18 @@
 
 import os
 import unittest
+
 import numpy as np
-
-from rdkit import Chem
 from filter.overlap_filter import OverlapFilter
-from merge.preprocessing import get_protein, get_mol
-
+from rdkit import Chem
+from utils.utils import get_protein
 
 frag_dir = os.path.join("tests", "test_Fragalysis")
-suppl = Chem.SDMolSupplier(
-    os.path.join("tests", "test_data", "overlap_filter_mols.sdf")
-)
-test_mols = [x for x in suppl]
+test_mols = [x for x in Chem.SDMolSupplier(os.path.join("tests", "test_data", "overlap_filter_mols.sdf"))]
 passing_mol, failing_mol = test_mols[0], test_mols[1]
-fA = get_mol("Mpro", "x0107_0A", False, frag_dir)
-fB = get_mol("Mpro", "x0678_0A", False, frag_dir)
 proteinA = get_protein("Mpro", "x0107_0A", True, frag_dir)
 proteinB = get_protein("Mpro", "x0678_0A", True, frag_dir)
-proteinA_path = get_protein("Mpro", "x0107_0A", False, frag_dir)
-proteinB_path = get_protein("Mpro", "x0678_0A", False, frag_dir)
-filter = OverlapFilter(
-    None, None, fA, fB, proteinA_path, proteinB_path, None, test_mols
-)
+filter = OverlapFilter()
 
 
 class TestOverlapFilter(unittest.TestCase):

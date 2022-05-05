@@ -5,19 +5,7 @@ import shutil
 import unittest
 
 from filter.fragmenstein_filter import FragmensteinFilter
-from merge.preprocessing import get_mol, get_protein
-
-frag_dir = os.path.join("tests", "test_Fragalysis")
-fragmentA_path = get_mol("Mpro", "x0107_0A", False, frag_dir)
-fragmentB_path = get_mol("Mpro", "x0678_0A", False, frag_dir)
-proteinA_path = get_protein("Mpro", "x0107_0A", False, frag_dir)
-proteinB_path = get_protein("Mpro", "x0678_0A", False, frag_dir)
-merge = "x107-0A-x0678-0A"
-name = "x107-0A-x0678-0A-123"
-smi = "NC(=O)CN1CCC2(C1)CC1(C2)OCCO1"
-synthon = "NC(=O)C[Xe]"
-working_dir = "tests/test_working/"
-output_dir = "tests/test_output/"
+from utils.utils import get_mol, get_protein
 
 
 def remove_files(dir):
@@ -35,6 +23,18 @@ class TestFragmensteinFilter(unittest.TestCase):
 
     def test_place_smiles(self):
         """Checks that molecules correctly pass and fail the filter"""
+        frag_dir = os.path.join("tests", "test_Fragalysis")
+        fragmentA_path = get_mol("Mpro", "x0107_0A", False, frag_dir)
+        fragmentB_path = get_mol("Mpro", "x0678_0A", False, frag_dir)
+        proteinA_path = get_protein("Mpro", "x0107_0A", False, frag_dir)
+        proteinB_path = get_protein("Mpro", "x0678_0A", False, frag_dir)
+        merge = "x107-0A-x0678-0A"
+        name = "x107-0A-x0678-0A-123"
+        smi = "NC(=O)CN1CCC2(C1)CC1(C2)OCCO1"
+        synthon = "NC(=O)C[Xe]"
+        working_dir = "tests/test_working/"
+        output_dir = "tests/test_output/"
+
         filter = FragmensteinFilter(
             [smi],
             [synthon],

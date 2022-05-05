@@ -6,31 +6,16 @@ import os
 import shutil
 from abc import ABC, abstractmethod
 
-from Bio.PDB import Select
-from Bio.PDB.PDBIO import PDBIO
-from Bio.PDB.PDBParser import PDBParser
 from filter.config_filter import config_filter
 from joblib import Parallel, delayed
 from rdkit.Chem import rdmolfiles
-
-
-class ResSelect(Select):
-    """
-    Class to remove ligand 'residue' from pdb structure.
-    """
-
-    def accept_residue(self, residue):
-        if residue.id[0] == "H_LIG":
-            return False
-        else:
-            return True
+from utils.filter_utils import remove_ligand
 
 
 class Score_generic(ABC):
     """
     Abstract class for scoring filtered molecules
     """
-
     def __init__(
         self,
         smis: list,
@@ -75,33 +60,12 @@ class Score_generic(ABC):
         for k, v in kwargs.items():
             setattr(self, k, v)
 
-    def _remove_ligand(self, pdb_file):
-        """
-        Function uses BioPython to read in pdb structure, remove the ligand
-        and save to a new file in the same directory.
-        """
-        new_filename = pdb_file.replace(".pdb", "_nolig.pdb")
-        if not os.path.exists(new_filename):
-            parser = PDBParser(PERMISSIVE=1)
-            structure = parser.get_structure("pdb", pdb_file)
-
-            io = PDBIO()
-            io.set_structure(structure)
-
-            for model in structure:
-                for chain in model:
-                    for residue in chain:
-                        io.save(new_filename, ResSelect())
-
-            print("ligand removed")
-        return new_filename
-
     def get_apo_files(self, cpus: int = config_filter.N_CPUS_FILTER_PAIR):
         """
         Get the apo files by removing ligand from holo files.
         """
         self.apo_files = Parallel(n_jobs=cpus, backend="multiprocessing")(
-            delayed(self._remove_ligand)(holo_file) for holo_file in self.holo_files
+            delayed(remove_ligand)(holo_file) for holo_file in self.holo_files
         )
 
     def move_apo_files(self):

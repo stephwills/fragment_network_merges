@@ -11,11 +11,12 @@ import time
 from abc import ABC, abstractmethod
 from typing import List, Tuple
 
-from filter.embedding_filter import remove_xe, add_coordinates
+from filter.embedding_filter import add_coordinates, remove_xe
 from merge.config_merge import config_merge
-from merge.preprocessing import get_mol, get_pair_dict, get_smiles, load_json
+from merge.preprocessing import get_pair_dict
 from rdkit import Chem
 from rdkit.Chem import Mol, rdShapeHelpers
+from utils.utils import get_mol, get_smiles, load_json
 
 
 class SearchSession_generic(ABC):
@@ -277,8 +278,9 @@ class MergerFinder_generic(ABC):
         if synthons:
             # if we have pre-defined synthons that we want to use (e.g. for a focused 3-hop query after doing 2-hop)
             true_synthons = self.get_synthons(fragmentB)
-            for i, synthon in enumerate(true_synthons):
-                if synthon not in synthons:
+            # print(true_synthons)
+            for synthon in synthons:
+                if synthon not in true_synthons:
                     print(
                         f"Synthon {synthon} is not a synthon of fragment {nameB}. Cannot run expansion."
                     )

@@ -2,7 +2,7 @@
 import unittest
 
 from merge.find_merges_neo4j import MergerFinder_neo4j
-from merge.preprocessing import get_mol
+from utils.utils import get_mol
 from rdkit import Chem
 
 merger = MergerFinder_neo4j()
@@ -26,7 +26,7 @@ class TestFindMerges(unittest.TestCase):
         smi = Chem.MolToSmiles(Chem.MolFromSmiles("CC=1C=CC(CS(=O)(=O)N)=CC1F"))
         smi2 = Chem.MolToSmiles(Chem.MolFromSmiles("CS(=O)(=O)NCCC=1C=CC=CC1"))
         results = merger.get_expansions(
-            [smi, smi2], ["x0034_0B", "x0176_0B"], "nsp13", None
+            (smi, smi2), ("x0034_0B", "x0176_0B"), "nsp13", None
         )
         print(results)
         dict_len = 2

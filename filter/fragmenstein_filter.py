@@ -1,5 +1,6 @@
 """Place and filter the smiles with Fragmenstein"""
 
+import argparse
 import json
 import os
 import shutil
@@ -9,25 +10,26 @@ from multiprocessing import Manager
 from typing import Tuple
 
 import pyrosetta
+from dm_job_utilities.dm_log import DmLog
 from filter.config_filter import config_filter
 from filter.generic_filter import Filter_generic
 from fragmenstein import Victor
-from merge.preprocessing import load_json
 from pebble import ProcessPool
 from rdkit import Chem
 from rdkit.Chem import rdmolfiles
+from utils.utils import load_json
 
 
 class FragmensteinFilter(Filter_generic):
     def __init__(
         self,
-        smis: list,
-        synthons: list,
-        fragmentA,
-        fragmentB,
-        proteinA,
-        proteinB,
-        merge,
+        smis=None,
+        synthons=None,
+        fragmentA=None,
+        fragmentB=None,
+        proteinA=None,
+        proteinB=None,
+        merge=None,
         mols=None,
         names=None,
         work_pair_dir=None,
@@ -72,11 +74,6 @@ class FragmensteinFilter(Filter_generic):
     def _copy_files(self, name: str, merge_dir: str, json_file, mol_file, holo_file):
         """
         If filter passes, move the working dir files to the output dir.
-
-        :param name: name of the merge used in file naming
-        :type name: str
-        :param merge_dir: name of the merge directory
-        :type merge_dir: str
         """
         output_subdir = os.path.join(self.out_pair_dir, name)
         if not os.path.exists(output_subdir):
@@ -94,12 +91,6 @@ class FragmensteinFilter(Filter_generic):
     def _get_dict(json_file: str) -> dict:
         """
         Function opens the json file to load the dictionary
-
-        :param json_file: json containing the dictionary
-        :type json_file: .json
-
-        :return: dictionary containing Fragmenstein info
-        :rtype: nested dictionary
         """
         if os.path.exists(json_file):
             with open(json_file) as f:
@@ -111,32 +102,27 @@ class FragmensteinFilter(Filter_generic):
         Create sub-directories for each merge to save the fragmenstein files to. These will all be saved in the
         working directory and then moved later if filtering is successful (to avoid reading and writing to shared
         disk).
-
-        :param name: unique name of the merge
-        :type name: str
-
-        :return: merge_dir, bool (True if fragmenstein not run, False if already run)
-        :rtype: tuple
         """
         merge_dir = os.path.join(self.work_pair_dir, name)
         fname = f"{name}.minimised.json"
         fname = os.path.join(merge_dir, fname)
+        print(fname, "already exists")
         if os.path.exists(fname):
             return merge_dir, True
         else:
             return merge_dir, False
 
     @staticmethod
-    def _get_idx(name: str) -> str:
+    def _get_idx(name: str) -> int:
+        """
+        Get index of the merge from the name (e.g. '123' from x0034-0B-x0176-0B-123).
+        """
         return int(name.split("-")[-1])
 
     @staticmethod
     def _get_name(name: str) -> str:
         """
         Get the merge names used in the file paths - Fragmenstein replaces the underscores with hyphens.
-
-        :return: name
-        :rtype: str
         """
         _name = name.replace("_", "-")
         return _name
@@ -231,6 +217,7 @@ class FragmensteinFilter(Filter_generic):
                 result = True
                 # move the fragmenstein files to the output directory
                 self._copy_files(name, merge_dir, json_file, mol_file, holo_file)
+                # shutil.rmtree(merge_dir)
 
             else:
                 result = False
@@ -257,6 +244,8 @@ class FragmensteinFilter(Filter_generic):
         self,
         cpus: int = config_filter.N_CPUS_FILTER_PAIR,
         timeout: int = config_filter.TIMEOUT,
+        comRMSD_threshold: float = config_filter.COM_RMSD,
+        residue: int = config_filter.COVALENT_RESI,
     ) -> Tuple[list, list]:
         """
         Runs the Fragmenstein filter on all the SMILES in parallel.
@@ -265,6 +254,10 @@ class FragmensteinFilter(Filter_generic):
         :type cpus: int
         :param timeout: how long to let Fragmenstein run for (seconds)
         :type timeout: int
+        :param comRMSD_threshold: threshold for combined RMSD filter
+        :type comRMSD_threshold: float
+        :param residue: covalent residue for PyRosetta, e.g. 2B
+        :type residue: str
 
         :return: list of results (True or False); list of mols (RDKit molecules)
         :rtype: tuple
@@ -283,7 +276,14 @@ class FragmensteinFilter(Filter_generic):
             self.errors = manager.dict()
 
         with ProcessPool(max_workers=cpus) as pool:
-            mapped = pool.map(self.filter_smi, self.names, self.smis, timeout=timeout)
+            mapped = pool.map(
+                self.filter_smi,
+                self.names,
+                self.smis,
+                timeout=timeout,
+                comRMSD_threshold=comRMSD_threshold,
+                residue=residue,
+            )
             iterator = mapped.result()
             res = []
             index = 0  # keep track of which merge run (for recording errors)
@@ -296,11 +296,9 @@ class FragmensteinFilter(Filter_generic):
                 except TimeoutError:
                     error_name = self.names[index]
                     error_smi = self.smis[index]
-                    print(
-                        f"Timeout error for merge {error_name}, smiles {error_smi}"
-                    )
+                    print(f"Timeout error for merge {error_name}, smiles {error_smi}")
                     if error_name not in self.errors.keys():
-                        self.errors[error_name] = 'Timeout Error'
+                        self.errors[error_name] = "Timeout Error"
                         with open(
                             self.fragmenstein_errors_fpath,
                             "w",
@@ -313,11 +311,9 @@ class FragmensteinFilter(Filter_generic):
                 except Exception:
                     error_name = self.names[index]
                     error_smi = self.smis[index]
-                    print(
-                        f"Error for merge {error_name}, smiles {error_smi}"
-                    )
+                    print(f"Error for merge {error_name}, smiles {error_smi}")
                     if error_name not in self.errors.keys():
-                        self.errors[error_name] = 'Non-timeout error'
+                        self.errors[error_name] = "Non-timeout error"
                         with open(
                             self.fragmenstein_errors_fpath,
                             "w",
@@ -337,3 +333,126 @@ class FragmensteinFilter(Filter_generic):
         self.holo_files = [r[4] for r in res]
 
         return self.results, self.mols
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        epilog="""
+    python filter/fragmenstein_filter.py --input_file data/toFilter.sdf --output results.sdf
+    --fragmentA_file fragmentA.mol --fragmentB_file fragmentB.mol
+    --proteinA_file fragmentA_apo-desolv.pdb --proteinB_file fragmentB_apo-desolv.pdb
+    --pair_name fragmentA-fragmentB --working_dir working --output_dir output
+    --n_cpus 2 --timeout 600 --residue 1"""
+    )
+    # command line args definitions
+    parser.add_argument(
+        "-i",
+        "--input_file",
+        required=True,
+        help="input sdf file containing molecules to filter",
+    )
+    parser.add_argument(
+        "-o",
+        "--output_file",
+        required=True,
+        help="output sdf file to write filtered SMILES",
+    )
+    parser.add_argument(
+        "-a", "--fragmentA_file", required=True, help="fragment A mol file"
+    )
+    parser.add_argument(
+        "-b", "--fragmentB_file", required=True, help="fragment B mol file"
+    )
+    parser.add_argument(
+        "-A", "--proteinA_file", required=True, help="fragment A apo pdb file"
+    )
+    parser.add_argument(
+        "-B", "--proteinB_file", required=True, help="fragment B apo pdb file"
+    )
+    parser.add_argument(
+        "-p",
+        "--pair_name",
+        required=True,
+        help="name of the pair (used for naming files)",
+    )
+    parser.add_argument(
+        "-W", "--working_dir", required=True, help="where to save intermediate files"
+    )
+    parser.add_argument(
+        "-O", "--output_dir", required=True, help="where to save the final files"
+    )
+    parser.add_argument(
+        "-c",
+        "--n_cpus",
+        required=False,
+        default=1,
+        type=int,
+        help="number of CPUs for paralellization",
+    )
+    parser.add_argument(
+        "-t",
+        "--timeout",
+        required=False,
+        default=600,
+        type=int,
+        help="number of seconds until Fragmenstein timeout",
+    )
+    parser.add_argument(
+        "-r",
+        "--residue",
+        required=False,
+        default=1,
+        type=int,
+        help="covalent residue, default is 1 if none",
+    )
+
+    args = parser.parse_args()
+
+    mols = [x for x in Chem.SDMolSupplier(args.input_file)]
+    smiles = [Chem.MolToSmiles(mol) for mol in mols]
+    synthons = [mol.GetProp("synthon") for mol in mols]
+    names = [f"{args.pair_name}-{i}" for i in range(len(smiles))]
+
+    filter = FragmensteinFilter(
+        smiles,
+        synthons,
+        args.fragmentA_file,
+        args.fragmentB_file,
+        args.proteinA_file,
+        args.proteinB_file,
+        args.pair_name,
+        mols,
+        names,
+        args.working_dir,
+        args.output_dir,
+    )
+
+    DmLog.emit_event("fragmenstein_filter: ", args)
+
+    start = time.time()
+    count = 0
+    hits = 0
+    # errors = 0
+
+    results, placed_mols = filter.filter_all(args.n_cpus, args.timeoue, args.residue)
+
+    with Chem.SDWriter(args.output_file) as w:
+        for res, name, mol, synthon in zip(results, names, placed_mols, synthons):
+            count += 1
+            if res:
+                hits += 1
+                mol.SetProp("name", name)
+                mol.SetProp("synthon", synthon)
+                w.write(mol)
+
+        end = time.time()
+        duration_s = int(end - start)
+        if duration_s < 1:
+            duration_s = 1
+
+        DmLog.emit_event(count, "inputs,", hits, "hits,", "Time (s):", duration_s)
+        DmLog.emit_cost(count)
+
+
+if __name__ == "__main__":
+    main()

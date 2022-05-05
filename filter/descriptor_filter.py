@@ -2,8 +2,11 @@
 Used for filtering merges according to calculated descriptors.
 """
 
+import argparse
+import time
 from typing import Tuple
 
+from dm_job_utilities.dm_log import DmLog
 from filter.config_filter import config_filter
 from filter.generic_filter import Filter_generic
 from joblib import Parallel, delayed
@@ -14,7 +17,7 @@ from rdkit.Chem import Crippen, rdMolDescriptors
 class DescriptorFilter(Filter_generic):
     def __init__(
         self,
-        smis: list,
+        smis=None,
         synthons=None,
         fragmentA=None,
         fragmentB=None,
@@ -39,12 +42,13 @@ class DescriptorFilter(Filter_generic):
             pair_working_dir,
             pair_output_dir,
         )
+        self.results = None
 
     @staticmethod
     def calculate_properties(smi: str) -> int:
         """
-        Function to calculate the Lipinski descriptors of the molecule.
-        Counts the number of violations of Lipinski's rules.
+        Function to calculate the Lipinski descriptors of the molecule and the number of rotatable bonds.
+        If >10 rotatable bonds, will fail filter (violations >1).
 
         :param smi: smiles of the merge
         :type smi: str
@@ -74,7 +78,6 @@ class DescriptorFilter(Filter_generic):
                 violations += 1
             if hbd > 5:
                 violations += 1
-            # print(violations)
             return violations
 
     def filter_smi(self, smi: str) -> bool:
@@ -110,3 +113,66 @@ class DescriptorFilter(Filter_generic):
             delayed(self.filter_smi)(smi) for smi in self.smis
         )
         return self.results, self.mols
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        epilog="""
+    python filter/descriptor_filter.py --input_file data/toFilter.sdf --output_file results.sdf
+    """
+    )
+    # command line args definitions
+    parser.add_argument(
+        "-i",
+        "--input_file",
+        required=True,
+        help="input sdf file containing molecules to filter",
+    )
+    parser.add_argument(
+        "-o",
+        "--output_file",
+        required=True,
+        help="output sdf file to write filtered SMILES",
+    )
+    args = parser.parse_args()
+
+    filter = DescriptorFilter()
+    DmLog.emit_event("descriptor_filter: ", args)
+
+    start = time.time()
+    count = 0
+    hits = 0
+    errors = 0
+
+    with Chem.SDWriter(args.output_file) as w:
+        with Chem.SDMolSupplier(args.input_file) as suppl:
+            for mol in suppl:
+                if mol is None:
+                    continue
+                else:
+                    count += 1
+                    smi = Chem.MolToSmiles(mol)
+                    try:
+                        res = filter.filter_smi(smi)
+                        if res:
+                            hits += 1
+                            w.write(mol)
+                    except Exception as e:
+                        DmLog.emit_event(
+                            "Failed to process molecule", count, smi
+                        )
+                        errors += 1
+
+    end = time.time()
+    duration_s = int(end - start)
+    if duration_s < 1:
+        duration_s = 1
+
+    DmLog.emit_event(
+        count, "inputs,", hits, "hits,", errors, "errors.", "Time (s):", duration_s
+    )
+    DmLog.emit_cost(count)
+
+
+if __name__ == "__main__":
+    main()

@@ -12,7 +12,7 @@ from merge.config_merge import config_merge
 from merge.find_merges_generic import (MergerFinder_generic,
                                        SearchSession_generic,
                                        add_required_synthons)
-from merge.utils import Singleton
+from utils.singleton import Singleton
 
 
 class RestAPI_wrapper(SearchSession_generic):

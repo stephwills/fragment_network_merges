@@ -6,9 +6,10 @@ import json
 import sys
 import shutil
 import time
+import tempfile
 
 from filter.config_filter import config_filter
-from merge.preprocessing import load_json, get_merges, get_mol, get_protein
+from utils.utils import load_json, get_merges, get_mol, get_protein
 
 
 def create_directories(
@@ -28,13 +29,11 @@ def create_directories(
     :param output_dir: output directory path
     :type output_dir: str
     """
-    merge_dir = os.path.join(working_dir, "tempfiles", target, pair)
+    tmpdir = tempfile.mkdtemp(dir=working_dir, prefix='tempfiles_')
+    merge_dir = os.path.join(tmpdir, target, pair)
 
-    if not os.path.exists(os.path.join(working_dir, "tempfiles")):
-        os.mkdir(os.path.join(working_dir, "tempfiles"))
-
-    if not os.path.exists(os.path.join(working_dir, "tempfiles", target)):
-        os.mkdir(os.path.join(working_dir, "tempfiles", target))
+    if not os.path.exists(os.path.join(tmpdir, target)):
+        os.mkdir(os.path.join(tmpdir, target))
 
     if not os.path.exists(merge_dir):
         os.mkdir(merge_dir)
@@ -61,6 +60,7 @@ class FilterPipeline:
         filter_steps: list,
         score_steps: list,
         target: str,
+        merge_dir: str,
         working_dir: str = config_filter.WORKING_DIR,
         output_dir: str = config_filter.OUTPUT_DIR,
     ):
@@ -87,7 +87,7 @@ class FilterPipeline:
         self.target = target
 
         # file saving
-        self.pair_working_dir = os.path.join(working_dir, "tempfiles", target, merge)
+        self.pair_working_dir = merge_dir
         self.pair_output_dir = os.path.join(output_dir, target, merge)
         self.failed_fpath = os.path.join(
             self.pair_working_dir, f"{self.merge}_failures.json"
@@ -108,8 +108,13 @@ class FilterPipeline:
         """
         Check if any of the SMILES have already been run - this happens.
         """
-        if os.path.exists(self.failed_fpath):
-            self.failures = load_json(self.failed_fpath)
+        output_failed_fpath = os.path.join(
+            self.pair_output_dir, f"{self.merge}_failures.json"
+        )
+        print('$$$')
+        print(output_failed_fpath)
+        if os.path.exists(output_failed_fpath):
+            self.failures = load_json(output_failed_fpath)
             failed_merges = list(self.failures.keys())
 
             for i, name in reversed(list(enumerate(self.names))):
@@ -377,6 +382,7 @@ def main():
         filter_steps,
         score_steps,
         args.target,
+        merge_dir,
         args.working_dir,
         args.output_dir,
     )

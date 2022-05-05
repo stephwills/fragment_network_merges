@@ -11,7 +11,6 @@ class Filter_generic(ABC):
     """
     Abstract class for filtering step
     """
-
     def __init__(
         self,
         smis: list,
