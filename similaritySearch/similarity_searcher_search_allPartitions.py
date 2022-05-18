@@ -6,7 +6,7 @@ from argparse import ArgumentParser
 from subprocess import check_call, check_output
 import re
 from similaritySearch.similaritySearchConfig import SHARED_TMP, DASK_DISTRIBUTED__COMM__TIMEOUTS__CONNECT, PATH, \
-  PYTHON_CLUSTER
+  PYTHON_CLUSTER, WAIT_TIME_LAUNCH_QUEUE
 from similaritySearch.similarity_searcher_collect_results import combine_search_jsons
 from utils.send_to_condor import submit_to_condor
 
@@ -181,7 +181,7 @@ def globalSearch():
         break
       else:
         print("waiting results. Remaining: %d"%(remaining))
-        time.sleep(10)
+        time.sleep(WAIT_TIME_LAUNCH_QUEUE)
     output_names, jobIds = zip(*results_names)
     combined_json = combine_search_jsons(output_names)
     with open(args.output_name, "w") as f:
