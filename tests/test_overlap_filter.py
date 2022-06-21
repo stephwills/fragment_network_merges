@@ -11,7 +11,7 @@ from utils.utils import get_protein
 
 frag_dir = os.path.join("tests", "test_Fragalysis")
 test_sdf = os.path.join("tests", "test_data", "overlap_filter_mols.sdf")
-output_sdf = os.path.join('tests', 'test_data', 'test_overlap_output.sdf')
+output_sdf = os.path.join("tests", "test_data", "test_overlap_output.sdf")
 test_mols = [x for x in Chem.SDMolSupplier(test_sdf)]
 passing_mol, failing_mol = test_mols[0], test_mols[1]
 proteinA = get_protein("Mpro", "x0107_0A", True, frag_dir)
@@ -49,24 +49,47 @@ class TestOverlapFilter(unittest.TestCase):
 
     def test_parser(self):
         """Check the argparse function"""
-        args = parse_args(['-i', test_sdf,
-                             '-o', output_sdf,
-                             '-A', get_protein("Mpro", "x0107_0A", False, frag_dir),
-                             '-B', get_protein("Mpro", "x0678_0A", False, frag_dir),
-                             '-c', '0.15'])
-        self.assertEqual(args.input_file, os.path.join('tests', 'test_data', 'overlap_filter_mols.sdf'))
+        args = parse_args(
+            [
+                "-i",
+                test_sdf,
+                "-o",
+                output_sdf,
+                "-A",
+                get_protein("Mpro", "x0107_0A", False, frag_dir),
+                "-B",
+                get_protein("Mpro", "x0678_0A", False, frag_dir),
+                "-c",
+                "0.15",
+            ]
+        )
+        self.assertEqual(
+            args.input_file,
+            os.path.join("tests", "test_data", "overlap_filter_mols.sdf"),
+        )
         self.assertEqual(args.clash_threshold, 0.15)
 
     def test_main(self):
         """Check that main executes correctly and produces output file"""
-        with patch('sys.argv', ['filter/overlap_filter.py', '-i', test_sdf,
-                                     '-o', output_sdf,
-                                     '-A', get_protein("Mpro", "x0107_0A", False, frag_dir),
-                                     '-B', get_protein("Mpro", "x0678_0A", False, frag_dir),
-                                     '-c', '0.15']):
+        with patch(
+            "sys.argv",
+            [
+                "filter/overlap_filter.py",
+                "-i",
+                test_sdf,
+                "-o",
+                output_sdf,
+                "-A",
+                get_protein("Mpro", "x0107_0A", False, frag_dir),
+                "-B",
+                get_protein("Mpro", "x0678_0A", False, frag_dir),
+                "-c",
+                "0.15",
+            ],
+        ):
             main()
         self.assertTrue(os.path.exists(output_sdf))
-        os.remove(os.path.join('tests', 'test_data', 'test_overlap_output.sdf'))
+        os.remove(output_sdf)
 
 
 if __name__ == "__main__":

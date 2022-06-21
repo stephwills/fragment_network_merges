@@ -145,4 +145,6 @@ merge/run_focused_query.py
 filter/*_ss.py
 tests/*_ss.py
 tests/test_data/*ss*
-utils/
+analysis/
+data_manager/
+filter/elaboratability_filter.py
