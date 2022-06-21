@@ -2,14 +2,17 @@
 
 import os
 import unittest
+from unittest.mock import patch
 
 import numpy as np
-from filter.overlap_filter import OverlapFilter
+from filter.overlap_filter import OverlapFilter, parse_args, main
 from rdkit import Chem
 from utils.utils import get_protein
 
 frag_dir = os.path.join("tests", "test_Fragalysis")
-test_mols = [x for x in Chem.SDMolSupplier(os.path.join("tests", "test_data", "overlap_filter_mols.sdf"))]
+test_sdf = os.path.join("tests", "test_data", "overlap_filter_mols.sdf")
+output_sdf = os.path.join('tests', 'test_data', 'test_overlap_output.sdf')
+test_mols = [x for x in Chem.SDMolSupplier(test_sdf)]
 passing_mol, failing_mol = test_mols[0], test_mols[1]
 proteinA = get_protein("Mpro", "x0107_0A", True, frag_dir)
 proteinB = get_protein("Mpro", "x0678_0A", True, frag_dir)
@@ -43,6 +46,27 @@ class TestOverlapFilter(unittest.TestCase):
         """Checks that molecules correctly fail the filter"""
         failing_result = filter.filter_smi(failing_mol, proteinA, proteinB, 0.15)
         self.assertEqual(False, failing_result)
+
+    def test_parser(self):
+        """Check the argparse function"""
+        args = parse_args(['-i', test_sdf,
+                             '-o', output_sdf,
+                             '-A', get_protein("Mpro", "x0107_0A", False, frag_dir),
+                             '-B', get_protein("Mpro", "x0678_0A", False, frag_dir),
+                             '-c', '0.15'])
+        self.assertEqual(args.input_file, os.path.join('tests', 'test_data', 'overlap_filter_mols.sdf'))
+        self.assertEqual(args.clash_threshold, 0.15)
+
+    def test_main(self):
+        """Check that main executes correctly and produces output file"""
+        with patch('sys.argv', ['filter/overlap_filter.py', '-i', test_sdf,
+                                     '-o', output_sdf,
+                                     '-A', get_protein("Mpro", "x0107_0A", False, frag_dir),
+                                     '-B', get_protein("Mpro", "x0678_0A", False, frag_dir),
+                                     '-c', '0.15']):
+            main()
+        self.assertTrue(os.path.exists(output_sdf))
+        os.remove(os.path.join('tests', 'test_data', 'test_overlap_output.sdf'))
 
 
 if __name__ == "__main__":

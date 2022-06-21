@@ -3,6 +3,7 @@ Used to filter out compounds that clash with the protein.
 """
 
 import argparse
+import sys
 import time
 from typing import Tuple
 
@@ -125,13 +126,16 @@ class OverlapFilter(Filter_generic):
         return self.results, self.mols
 
 
-def main():
+def parse_args(args):
+    """
+    Parse command line arguments
+    """
     parser = argparse.ArgumentParser(
         epilog="""
-    python filter/overlap_filter.py --input_file data/toFilter.sdf --output_file results.sdf
-    --proteinA_file nsp13-x0176_0B_apo-desolv.pdb --proteinB_file nsp13-x0034_0B_apo-desolv.pdb
-    --clash_threshold 0.15
-    """
+        python filter/overlap_filter.py --input_file data/toFilter.sdf --output_file results.sdf
+        --proteinA_file nsp13-x0176_0B_apo-desolv.pdb --proteinB_file nsp13-x0034_0B_apo-desolv.pdb
+        --clash_threshold 0.15
+        """
     )
     # command line args definitions
     parser.add_argument(
@@ -160,7 +164,11 @@ def main():
         help="maximum tolerated clash with protein (proportion of volume of ligand overlapping with protein)",
     )
 
-    args = parser.parse_args()
+    return parser.parse_args(args)
+
+
+def main():
+    args = parse_args(sys.argv[1:])
 
     filter = OverlapFilter()
     DmLog.emit_event("overlap_filter: ", args)
@@ -181,7 +189,6 @@ def main():
                 else:
                     count += 1
                     try:
-                        # smi = Chem.MolToSMiles(mol)
                         res = filter.filter_smi(
                             mol, proteinA, proteinB, args.clash_threshold
                         )
