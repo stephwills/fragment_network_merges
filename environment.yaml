@@ -1,0 +1,12 @@
+name: fragnet-merges
+channels:
+- conda-forge
+dependencies:
+- pip=21.1.1
+- rdkit=2021.09.4
+- scipy=1.8.1
+- pandas
+- oddt
+- pip:
+  - Fragmenstein==0.9.9
+  - im-data-manager-job-utilities==1.1.0

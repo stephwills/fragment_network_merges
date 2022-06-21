@@ -1,0 +1,26 @@
+FROM continuumio/miniconda3:4.12.0
+  
+RUN apt-get -y update &&\
+ apt-get -y install procps &&\
+ apt-get clean
+
+ENV PYTHONUNBUFFERED=1
+
+COPY requirements.txt ./
+
+ARG PYROSETTA_CREDENTIALS
+
+# conda install our requirements, including RDKit, pyrosetta and fragmenstein
+RUN CONDA_OVERRIDE_GLIBC=2.35 conda install -y -c conda-forge -c "https://${PYROSETTA_CREDENTIALS}@conda.graylab.jhu.edu" \
+ pip=21.1.1 rdkit=2021.09.4 scipy=1.8.1 pandas oddt pyrosetta=2022.3+release.5311e4a &&\
+ conda init bash &&\
+ pip install -r requirements.txt
+
+ENV PYTHONPATH=/code
+ENV HOME=/code
+WORKDIR ${HOME}
+
+COPY *.py ./
+COPY filter ./filter/
+COPY merge ./merge/
+COPY utils ./utils/

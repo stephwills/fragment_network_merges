@@ -130,9 +130,6 @@ dmypy.json
 # Pyre type checker
 .pyre/
 
-# data directory
-data/
-
 # other
 .vscode
 tests/test_output/*

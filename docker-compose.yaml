@@ -1,0 +1,10 @@
+---
+version: '3.0'
+
+services:
+
+  fragnet-merges:
+    build:
+      context: .
+      dockerfile: Dockerfile-python
+    image: xchem/swills-fragnet-merges:latest

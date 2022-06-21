@@ -1,0 +1,102 @@
+---
+kind: DataManagerJobDefinition
+kind-version: '2021.1'
+name: Jobs for fragment network merging
+collection: xchem
+
+jobs:
+  overlap-filter:
+    name: Filter molecules that clash with a protein
+    description: >-
+      Filter molecules that clash with a protein.
+    version: '1.0.0'
+    category: candidate generation
+    keywords:
+    - fbdd
+    - 3d_overlap
+    image:
+      name: xchem/swills-fragnet-merges
+      tag: latest
+      project-directory: /data
+      working-directory: /data
+      fix-permissions: true
+    command: >-
+      python -m filter.overlap_filter
+      --input_file {{ compounds }}
+      --output_file {{ outfile }}
+      --proteinA_file {{ protein_a }}
+      --proteinB_file {{ protein_b }}
+      --clash_threshold {{ clash_threshold }}
+    variables:
+      order:
+        inputs:
+        - compounds
+        - protein_a
+        - protein_b
+        options:
+        - outfile
+        - clash_threshold
+      inputs:
+        type: object
+        required:
+        - compounds
+        - protein_a
+        - protein_b
+        properties:
+          compounds:
+            title: Compounds to check
+            mime-types:
+            - chemical/x-mdl-sdfile
+            type: file
+          protein_a:
+            title: 1st PDB file
+            mime-types:
+            - chemical/x-pdb
+            type: file
+          protein_b:
+            title: 2nd PDB file
+            mime-types:
+            - chemical/x-pdb
+            type: file
+      outputs:
+        type: object
+        properties:
+          outputs:
+            title: Checked compounds
+            mime-types:
+            - chemical/x-mdl-sdfile
+            creates: '{{ outfile }}'
+            type: file
+      options:
+        type: object
+        required:
+        - outfile
+        - count
+        - keepHydrogens
+        properties:
+          outfile:
+            title: Output file name
+            type: string
+            default: checked_compounds.sdf
+            pattern: "^[A-Za-z0-9_/\\.\\-]+\\.sdf$"
+          clash_threshold:
+            title: Distance filter for clashes
+            type: number
+            default: 0.15
+            minimum: 0.1
+            maximum: 0.2
+    tests:
+      simple-execution:
+        inputs:
+          compounds: data/overlap_filter_mols.sdf
+          protein_a: data/Mpro-x0107_0A_apo-desolv.pdb
+          protein_b: data/Mpro-x0678_0A_apo-desolv.pdb
+        options:
+          outfile: results.sdf
+          clash_threshold: 0.15
+        checks:
+          exitCode: 0
+          outputs:
+          - name: results.sdf
+            checks:
+            - exists: true
