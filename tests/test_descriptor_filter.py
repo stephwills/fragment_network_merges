@@ -1,8 +1,13 @@
 """Tests the descriptor filter script"""
 
+import os
 import unittest
+from unittest.mock import patch
 
-from filter.descriptor_filter import DescriptorFilter
+from filter.descriptor_filter import DescriptorFilter, parse_args, main
+
+test_sdf = os.path.join("tests", "test_data", "descriptor_filter_mols.sdf")
+output_sdf = os.path.join("tests", "test_data", "test_descriptor_output.sdf")
 
 
 class TestDescriptorFilter(unittest.TestCase):
@@ -25,6 +30,22 @@ class TestDescriptorFilter(unittest.TestCase):
         actual_results = [True, False]
         results = filter.filter_all()[0]
         self.assertEqual(results, actual_results)
+
+    def test_main(self):
+        """Check that main executes correctly and produces output file"""
+        with patch(
+            "sys.argv",
+            [
+                "filter/descriptor_filter.py",
+                "-i",
+                test_sdf,
+                "-o",
+                output_sdf,
+            ],
+        ):
+            main()
+        self.assertTrue(os.path.exists(output_sdf))
+        os.remove(output_sdf)
 
 
 if __name__ == "__main__":

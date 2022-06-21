@@ -4,6 +4,7 @@ Used for filtering merges according to calculated descriptors.
 
 import argparse
 import time
+import sys
 from typing import Tuple
 
 from dm_job_utilities.dm_log import DmLog
@@ -115,7 +116,10 @@ class DescriptorFilter(Filter_generic):
         return self.results, self.mols
 
 
-def main():
+def parse_args(args):
+    """
+    Parse command line arguments
+    """
     parser = argparse.ArgumentParser(
         epilog="""
     python filter/descriptor_filter.py --input_file data/toFilter.sdf --output_file results.sdf
@@ -134,8 +138,11 @@ def main():
         required=True,
         help="output sdf file to write filtered SMILES",
     )
-    args = parser.parse_args()
+    return parser.parse_args(args)
 
+
+def main():
+    args = parse_args(sys.argv[1:])
     filter = DescriptorFilter()
     DmLog.emit_event("descriptor_filter: ", args)
 
