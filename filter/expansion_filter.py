@@ -2,157 +2,132 @@
 Used to filter out compounds that look like elaborations rather than merges.
 """
 
-from joblib import Parallel, delayed
-from rdkit import Chem
-from rdkit.Chem import AllChem, rdFMCS, rdShapeHelpers
+import argparse
+import time
 from typing import Tuple
 
+from dm_job_utilities.dm_log import DmLog
 from filter.config_filter import config_filter
-from filter.embedding_filter import add_coordinates, remove_xe
 from filter.generic_filter import Filter_generic
-
-# This function is currently a bit of a mess - there is a lot of exception handling involved that
-# hasn't been sorted out yet
+from joblib import Parallel, delayed
+from rdkit import Chem
+from rdkit.Chem import Lipinski, Mol, rdmolfiles
+from utils.filter_utils import get_mcs, remove_xe
 
 
 class ExpansionFilter(Filter_generic):
-
-    def __init__(self, smis: list, synthons: list, fragmentA, fragmentB, proteinA=None, proteinB=None,
-                 merge=None, mols=None, names=None):
-        super().__init__(smis, synthons, fragmentA, fragmentB, proteinA, proteinB, merge, mols, names)
+    def __init__(
+        self,
+        smis=None,
+        synthons=None,
+        fragmentA=None,
+        fragmentB=None,
+        proteinA=None,
+        proteinB=None,
+        merge=None,
+        mols=None,
+        names=None,
+        pair_working_dir=None,
+        pair_output_dir=None,
+    ):
+        super().__init__(
+            smis,
+            synthons,
+            fragmentA,
+            fragmentB,
+            proteinA,
+            proteinB,
+            merge,
+            mols,
+            names,
+            pair_working_dir,
+            pair_output_dir,
+        )
         self.results = None
 
-    def _check_for_mcs(self, _mols: list):
-        """Function checks if there is a MCS between fragment A, B and the merge.
-        Returns the molecule if there is and returns None if not.
-
-        :param _mols: list of mols (fragments and merge)
-        :type _mols: list of RDKit molecules
-
-        :return: the MCS molecule or None
-        :rtype: RDKit molecule or None
+    @staticmethod
+    def _get_mol(mol: Mol) -> Mol:
         """
-        mcs = rdFMCS.FindMCS(_mols, completeRingsOnly=True)
-        mcs_mol = Chem.MolFromSmarts(mcs.smartsString)
-        smi = Chem.MolToSmiles(mcs_mol)
-        if smi == '':
-            return None
+        Get mol from SMILES (MCS seems to fail for equivalent unaligned molecules otherwise) unless maintaining
+        partial sanitization required.
+        """
+        if "partiallySanitized" not in list(mol.GetPropNames()):
+            return Chem.MolFromSmiles(Chem.MolToSmiles(mol))
         else:
-            mcs_mol = Chem.MolFromSmiles(Chem.MolToSmiles(mcs_mol))
-            return mcs_mol
+            return mol
 
-    def filter_smi(self, merge: str, fragmentA, fragmentB, synthon: str, vol: float = config_filter.FRAGA_VOLUME)\
-            -> bool:
+    @staticmethod
+    def _atom_remover(mol, pattern):
         """
-        Function ensures that merges that are just expansions of one fragment are removed.
-        Removes part of the merge common to both fragments (by using MCS and checking overlap).
-        Then calculates the proportion of the volume of the merge that comes from expanded fragment A.
-        If more than 90%, these merges are ruled out.
+        Removes atoms from molecule that match pattern.
+        """
+        matches = mol.GetSubstructMatches(pattern)
+        if not matches:
+            yield Chem.Mol(mol)
+        for match in matches:
+            res = Chem.RWMol(mol)
+            res.BeginBatchEdit()
+            for aid in match:
+                res.RemoveAtom(aid)
+            res.CommitBatchEdit()
+            yield res
 
-        :param merge: merge SMILES string
-        :type merge: str
+    @staticmethod
+    def _check_synthon_mcs(
+        mcs: Mol, min_atoms: int = config_filter.N_MCS_ATOMS
+    ) -> bool:
+        """
+        Check if any non-carbon atoms OR if atom count >3.
+        """
+        num_atoms = Lipinski.HeavyAtomCount(mcs)
+        if num_atoms >= min_atoms:
+            return True
+        else:
+            return False
+
+    def filter_smi(
+        self,
+        smiles: str,
+        synthon: str,
+        fragmentA: Mol,
+        fragmentB: Mol,
+        min_atoms: int = config_filter.N_MCS_ATOMS,
+    ) -> bool:
+        """
+        Checks if molecule resemble expansions of fragment A (where fragment B is not contributing anything unique to
+        the merge). Calculates the MCS between fragment A and the merge. Looks at the remainder of the merge and checks
+        whether the MCS with the synthon is sensible (so fragment B has made a contribution - here if atom count is at
+        least 3).
+
+        :param smiles: smiles string of the merge
+        :type smiles: str
+        :param synthon: smiles string of the synthon
+        :type synthon: str
         :param fragmentA: fragment A molecule
         :type fragmentA: RDKit molecule
         :param fragmentB: fragment B molecule
         :type fragmentB: RDKit molecule
-        :param synthon: synthon SMILES string
-        :type synthon: str
+        :param min_atoms: min number of atoms contributed from synthon
+        :type min_atoms: int
 
         :return: whether molecule passes (True) or fails (False) filter
         :rtype: bool
         """
-        merge = Chem.MolFromSmiles(merge)
-        synthon = Chem.MolFromSmiles(synthon)
-        synthon = remove_xe(synthon)  # remove Xe from synthon
-
-        try:
-            # in few cases there is > 1 synthon match, just pass the molecule
-            if len(merge.GetSubstructMatches(synthon)) > 1:
-                result = True
-
-            else:
-                # check if there is a MCS (if not returns none)
-                mols = [merge, fragmentA, fragmentB]
-                mcs_mol = self._check_for_mcs(mols)
-
-                if not mcs_mol:
-                    # if no MCS, calculate volume and ratio
-                    AllChem.EmbedMolecule(merge)
-                    merge_vol = AllChem.ComputeMolVolume(merge)
-                    fA_part = AllChem.DeleteSubstructs(merge, synthon)
-                    fA_part_vol = AllChem.ComputeMolVolume(fA_part)
-
-                    ratio = fA_part_vol / merge_vol
-
-                    if ratio >= vol:
-                        result = False
-                    else:
-                        result = True
-
-                else:
-                    AllChem.EmbedMolecule(merge)  # generate conformation of the merge
-
-                    # check if there is overlap of the MCS in fragment A and B
-                    mcs_A = add_coordinates(fragmentA, mcs_mol)
-                    mcs_B = add_coordinates(fragmentB, mcs_mol)
-
-                    dist = rdShapeHelpers.ShapeProtrudeDist(mcs_A, mcs_B)
-
-                    if dist <= 0.5:  # if there is overlap, delete the substructure
-                        merge_no_mcs = Chem.RWMol(merge)
-                        mcs_matches = merge_no_mcs.GetSubstructMatches(mcs_mol)
-                        for index in sorted(mcs_matches[0], reverse=True):
-                            merge_no_mcs.RemoveAtom(index)
-
-                        merge_vol = AllChem.ComputeMolVolume(merge_no_mcs)
-
-                        # check if synthon is still there
-                        if len(merge_no_mcs.GetSubstructMatches(synthon)) == 1:
-                            # delete synthon and calculate the ratio
-                            fA_part = AllChem.DeleteSubstructs(merge_no_mcs, synthon)
-                            fA_part_vol = AllChem.ComputeMolVolume(fA_part)
-                            ratio = fA_part_vol / merge_vol
-
-                            if ratio >= vol:
-                                result = False
-                            else:
-                                result = True
-
-                        elif len(merge_no_mcs.GetSubstructMatches(synthon)) > 1:
-                            # if >1 synthon substructure present, remove just one
-                            fA_part = Chem.RWMol(merge_no_mcs)  # need editable mol
-                            matches = fA_part.GetSubstructMatches(synthon)
-                            for index in sorted(matches[0], reverse=True):
-                                fA_part.RemoveAtom(index)
-
-                            fA_part_vol = AllChem.ComputeMolVolume(fA_part)
-                            ratio = fA_part_vol / merge_vol
-
-                            if ratio >= vol:
-                                result = False
-                            else:
-                                result = True
-
-                        else:
-                            result = False
-
-                    else:   # if no overlap, calculate ratio of volumes
-                        merge_vol = AllChem.ComputeMolVolume(merge)
-                        fA_part = AllChem.DeleteSubstructs(merge, synthon)
-                        fA_part_vol = AllChem.ComputeMolVolume(fA_part)
-
-                        ratio = fA_part_vol / merge_vol
-
-                        if ratio >= vol:
-                            result = False
-                        else:
-                            result = True
-        except:
-            result = False
+        merge = Chem.MolFromSmiles(smiles)
+        mcs = get_mcs(fragmentA, merge)
+        mcs_removed_mols = [x for x in self._atom_remover(merge, mcs)]
+        synthon = remove_xe(Chem.MolFromSmiles(synthon))
+        result = False
+        for mol in mcs_removed_mols:
+            synthon_mcs = get_mcs(mol, synthon)
+            if synthon_mcs:
+                result = self._check_synthon_mcs(synthon_mcs)
 
         return result
 
-    def filter_all(self, cpus: int = config_filter.N_CPUS_FILTER_PAIR) -> Tuple[list, None]:
+    def filter_all(
+        self, cpus: int = config_filter.N_CPUS_FILTER_PAIR, **kwargs
+    ) -> Tuple[list, None]:
         """
         Runs the expansion filter on all the SMILES in parallel.
 
@@ -162,8 +137,92 @@ class ExpansionFilter(Filter_generic):
         :return: list of results (True or False); list of mols (None)
         :rtype: tuple
         """
-        print('debugging', self._fragmentA)
-        self.results = Parallel(n_jobs=cpus, backend='multiprocessing') \
-            (delayed(self.filter_smi)(smi, self._fragmentA, self._fragmentB, synthon) for smi, synthon in
-             zip(self.smis, self.synthons))
+        self.results = Parallel(n_jobs=cpus, backend="multiprocessing")(
+            delayed(self.filter_smi)(smi, synthon, self._fragmentA, self._fragmentB, **kwargs)
+            for smi, synthon in zip(self.smis, self.synthons)
+        )
         return self.results, self.mols
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        epilog="""
+    python filter/expansion_filter.py --input_file data/toFilter.sdf --output_file results.sdf
+    --fragmentA_file nsp13-x0176_0B.mol --min_atoms 3
+    """
+    )
+    # command line args definitions
+    parser.add_argument(
+        "-i",
+        "--input_file",
+        required=True,
+        help="input sdf file containing molecules to filter",
+    )
+    parser.add_argument(
+        "-o",
+        "--output_file",
+        required=True,
+        help="output sdf file to write filtered SMILES",
+    )
+    parser.add_argument(
+        "-A", "--fragmentA_file", required=True, help="fragment A mol file"
+    )
+    parser.add_argument(
+        "-B", "--fragmentB_file", required=True, help="fragment B mol file"
+    )
+    parser.add_argument(
+        "-a",
+        "--min_atoms",
+        type=int,
+        default=3,
+        help="minimum atom contribution from fragment B",
+    )
+
+    args = parser.parse_args()
+
+    filter = ExpansionFilter()
+    DmLog.emit_event("expansion_filter: ", args)
+
+    start = time.time()
+    count = 0
+    hits = 0
+    errors = 0
+
+    fragmentA = rdmolfiles.MolFromMolFile(args.fragmentA_file)
+    fragmentB = rdmolfiles.MolFromMolFile(args.fragmentB_file)
+
+    with Chem.SDWriter(args.output_file) as w:
+        with Chem.SDMolSupplier(args.input_file) as suppl:
+            for mol in suppl:
+                if mol is None:
+                    continue
+                else:
+                    count += 1
+                    try:
+                        smi = Chem.MolToSmiles(mol)
+                        synthon = mol.GetProp("synthon")
+                        res = filter.filter_smi(
+                            smi, synthon, fragmentA, fragmentB, args.min_atoms
+                        )
+                        if res:
+                            hits += 1
+                            w.write(mol)
+                    except Exception as e:
+                        DmLog.emit_event(
+                            "Failed to process molecule", count, Chem.MolToSmiles(mol)
+                        )
+                        errors += 1
+
+    end = time.time()
+    duration_s = int(end - start)
+    if duration_s < 1:
+        duration_s = 1
+
+    DmLog.emit_event(
+        count, "inputs,", hits, "hits,", errors, "errors.", "Time (s):", duration_s
+    )
+    DmLog.emit_cost(count)
+
+
+if __name__ == "__main__":
+    main()
