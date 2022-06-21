@@ -135,6 +135,16 @@ data/
 
 # other
 .vscode
-tests/test_output/
-tests/test_working/
+tests/test_output/*
+tests/test_working/*
 test.pdb
+notebooks/
+filter/place_simsearch.py
+merge/run_focused_query.py
+*docking_score.py
+filter/*_ss.py
+tests/*_ss.py
+tests/test_data/*ss*
+analysis/
+data_manager/
+filter/elaboratability_filter.py
