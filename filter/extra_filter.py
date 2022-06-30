@@ -19,9 +19,9 @@ def is_in_samering(idx1, idx2, bond_rings):
 def getLinkerbond(mol, useScaffold=True):
     res = []
     for atom in mol.GetAtoms():
-        atom.SetIntProp("orig_idx", atom.GetIdx())
+        atom.SetIntProp("orig_idx", atom.GetIdx())  # set original atom index as property
     for bond in mol.GetBonds():
-        bond.SetIntProp("orig_idx", bond.GetIdx())
+        bond.SetIntProp("orig_idx", bond.GetIdx())  # set original bond index as property
 
     if useScaffold:
         mol = MurckoScaffold.GetScaffoldForMol(mol)
@@ -52,48 +52,84 @@ def getLinkerbond(mol, useScaffold=True):
     return res
 
 
+def get_fragments(mol, bonds):
+    _fragments = Chem.FragmentOnBonds(mol, bonds)
+    fragments = Chem.GetMolFrags(_fragments, asMols=True)
+    linkers = []
+    sidechains = []
 
-def getMaxPath(mol, path_threshold, returnMaxPath=False):
+    for fragment in fragments:
+        print(fragments)
+        numRings = CalcNumRings(fragment)
+        if numRings == 0:
+            smiles = Chem.MolToSmiles(fragment)
+            print(smiles)
+            if smiles.count('*') == 1:
+                sidechains.append(fragment)
+            else:
+                linkers.append(fragment)
+
+
+    return linkers, sidechains
+
+def max_path(fragment):
+    maxPath = 0
+    numAtoms = CalcNumHeavyAtoms(fragment)
+    for i in range(numAtoms):  # look for paths up the length of number of atoms
+        # get max consecutive path length in linker
+        paths = rdmolops.FindAllPathsOfLengthN(fragment, i, useBonds=True)
+        if len(paths) > 0:
+            maxPath = i
+
+    return maxPath
+
+
+def getMaxPath(mol, linkerPathThreshold, sidechainPathThreshold, returnMaxPath=False, useScaffold=True):
     try:
-        bonds = getLinkerbond(mol)  # get the linker bonds for the molecule (join ring to linker)
+        bonds = getLinkerbond(mol, useScaffold)  # get the linker bonds for the molecule (join ring to linker)
         if len(bonds) == 0:
             if returnMaxPath:
                 return True, None
             else:
                 return True
         else:
-                _fragments = Chem.FragmentOnBonds(mol, bonds)
-                fragments = Chem.GetMolFrags(_fragments, asMols=True)  # split into fragments
+            linkers, sidechains = get_fragments(mol, bonds)
 
-                linkers = []
-                for fragment in fragments:
-                    numRings = CalcNumRings(fragment)
-                    if numRings == 0:  # check if fragment is linker or ring
-                        linkers.append(fragment)
+            maxLinkerPath = 0
+            maxSidechainPath = 0
 
-                maxPath = 0
+            if len(linkers) > 0:
                 for linker in linkers:
-                    numAtoms = CalcNumHeavyAtoms(linker)
-                    for i in range(numAtoms):  # look for paths up the length of number of atoms
+                    numLinkerAtoms = CalcNumHeavyAtoms(linker)
+                    for i in range(numLinkerAtoms):  # look for paths up the length of number of atoms
                         # get max consecutive path length in linker
-                        paths = rdmolops.FindAllPathsOfLengthN(linker, i, useBonds=True)
-                        if len(paths) > 0 and i > maxPath:
-                            maxPath = i
+                        linkerPaths = rdmolops.FindAllPathsOfLengthN(linker, i, useBonds=True)
+                        if len(linkerPaths) > 0 and i > maxLinkerPath:
+                            maxLinkerPath = i
 
-                if maxPath <= path_threshold:
-                    if returnMaxPath:
-                        return True, maxPath
-                    else:
-                        return True
+            if len(sidechains) > 0:
+                for sidechain in sidechains:
+                    numSidechainAtoms = CalcNumHeavyAtoms(sidechain)
+                    for i in range(numSidechainAtoms):  # look for paths up the length of number of atoms
+                        # get max consecutive path length in sidechain
+                        sidechainPaths = rdmolops.FindAllPathsOfLengthN(sidechain, i, useBonds=True)
+                        if len(sidechainPaths) > 0 and i > maxSidechainPath:
+                            maxSidechainPath = i
 
+            if maxLinkerPath <= linkerPathThreshold and maxSidechainPath <= sidechainPathThreshold:
+                if returnMaxPath:
+                    return True, maxLinkerPath, maxSidechainPath
                 else:
-                    if returnMaxPath:
-                        return False, maxPath
-                    else:
-                        return False
+                    return True
+
+            else:
+                if returnMaxPath:
+                    return False, maxLinkerPath, maxSidechainPath
+                else:
+                    return False
     except:
         if returnMaxPath:
-            return True, None
+            return True, None, None
         else:
             return True
 
@@ -144,7 +180,7 @@ def apply_extra_filters(names, smiles, pairs, synthons):
     filt_synthons = []
 
     for name, mol, smi, pair, synthon in zip(names, mols, smiles, pairs, synthons):
-        res1 = getMaxPath(mol, 8)
+        res1 = getMaxPath(mol, 8, 6)
         if res1:
             res2 = energy_filter(mol, 50, 7)
             if res2:
