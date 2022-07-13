@@ -6,7 +6,7 @@ import tempfile
 import warnings
 from subprocess import check_call, check_output
 
-from similaritySearch.similaritySearchConfig import DEFAULT_LOGS_DIR, DEFAULT_SUBMITS_DIR # TODO, move this to another config files
+import similaritySearch.similaritySearchConfig as config
 
 BASH_TEMPLATE='''###################
 %(conda_activate)s
@@ -49,7 +49,7 @@ Queue
 '''
 
 def submit_to_condor(cmd, n_cpus, memory=None, gpus=None, nodename=None, env_vars=None,
-         logdirs=DEFAULT_LOGS_DIR, tmpdir=DEFAULT_SUBMITS_DIR, conda_activate=None,
+         logdirs=config.DEFAULT_LOGS_DIR, tmpdir=config.DEFAULT_SUBMITS_DIR, conda_activate=None,
          only_print=False, **kwargs):
     if len(kwargs) >0:
         warnings.warn("Some kwargs were not used %s"%str(kwargs))
@@ -123,8 +123,10 @@ if __name__ == "__main__":
     parser.add_argument("--nodename", type=str, required=False, default=None, help="node where job will be executed")
 
     # parser.add_argument("--bindir", type=str, required=False, default=None, help="directory where the binary lives") #TODO
-    parser.add_argument("--logdirs", type=str, required=False, default=DEFAULT_LOGS_DIR, help="Logs directory. Default %(default)s")
-    parser.add_argument("--tmpdir", type=str, required=False, default=DEFAULT_SUBMITS_DIR, help="Logs directory. Default %(default)s")
+    parser.add_argument("--logdirs", type=str, required=False, default=config.DEFAULT_LOGS_DIR,
+                        help="Logs directory. Default %(default)s")
+    parser.add_argument("--tmpdir", type=str, required=False, default=config.DEFAULT_SUBMITS_DIR,
+                        help="Logs directory. Default %(default)s")
 
     parser.add_argument("--env_vars", type=str, nargs="+", required=False, default=[], help="enviramental variables")
     parser.add_argument("--conda_activate", type=str, required=False, default="", help="the name of the environment to activate") #TODO: this is not working properly

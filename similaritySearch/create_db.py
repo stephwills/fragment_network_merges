@@ -12,12 +12,12 @@ import dask.dataframe as dd
 from dask.distributed import futures_of, as_completed
 from joblib import Parallel, delayed
 
-from similaritySearch.compute_fingerprints import  computeFingerprint_np_Str, FINGERPRINT_NBITS
-from similaritySearch.similaritySearchConfig import N_LINES_PER_CHUNK, N_CPUS, TMP_DIR
+from similaritySearch.compute_fingerprints import  computeFingerprint_np_Str
+import similaritySearch.similaritySearchConfig as config
 from utils.parallelUtils import get_parallel_client
 
 
-def chunk_fname(fname, chunked_dir, n_lines_per_chunk=N_LINES_PER_CHUNK, n_cpus=1):
+def chunk_fname(fname, chunked_dir, n_lines_per_chunk=config.N_LINES_PER_CHUNK, n_cpus=1):
 
     fname_base = os.path.basename(fname).split(".")[0]
     chunk_prefix = os.path.join(chunked_dir, fname_base)
@@ -82,13 +82,13 @@ def chunk_fname(fname, chunked_dir, n_lines_per_chunk=N_LINES_PER_CHUNK, n_cpus=
     # for fname in find_unseen_names():
     #     yield fname
 
-def process_cxsmi_file(fname, compunds_db_fname, binaries_dir, n_lines_per_chunk=N_LINES_PER_CHUNK,
+def process_cxsmi_file(fname, compunds_db_fname, binaries_dir, n_lines_per_chunk=config.N_LINES_PER_CHUNK,
                        smi_colIdx=0, cid_colIdx=1, n_cpus=1):
 
     starting_time = time.time()
 
     print( fname )
-    with tempfile.TemporaryDirectory(dir=TMP_DIR) as tmpdir:
+    with tempfile.TemporaryDirectory(dir=config.TMP_DIR) as tmpdir:
         print(tmpdir)
 
         chunked_names = chunk_fname(fname, tmpdir, n_lines_per_chunk=n_lines_per_chunk,
@@ -167,9 +167,9 @@ def process_cxsmi_file(fname, compunds_db_fname, binaries_dir, n_lines_per_chunk
     total_time = time.time() - starting_time
     print( "Total time for %s ( %d smi): %s"%(fname, total_count, str(datetime.timedelta(seconds=total_time)) ))
 
-def process_all_files(cxsmiles_dir, outdir, n_lines_per_chunk=N_LINES_PER_CHUNK, work_in_memory=False,
-                      smi_colIdx=0, cid_colIdx=1, *args, **kwargs):
-
+def create_db_from_multiple_files(cxsmiles_dir, outdir, n_lines_per_chunk=config.N_LINES_PER_CHUNK,
+                                  work_in_memory=False, smi_colIdx=0, cid_colIdx=1, *args, **kwargs):
+    dask_client = get_parallel_client()
     actual_compunds_db_fname = os.path.join( outdir, "compounds.sqlite")
     assert  not os.path.exists(actual_compunds_db_fname), "Error, sqlite file %s already existing"%actual_compunds_db_fname
 
@@ -201,7 +201,7 @@ def process_all_files(cxsmiles_dir, outdir, n_lines_per_chunk=N_LINES_PER_CHUNK,
 
         cur.execute('''CREATE INDEX index_on_smiles ON smiles(compoundId)''')
 
-        cur.execute('INSERT INTO information values (?,?, ?)', ("Morgan", FINGERPRINT_NBITS, N_LINES_PER_CHUNK))
+        cur.execute('INSERT INTO information values (?,?, ?)', ("Morgan", config.FINGERPRINT_NBITS, config.N_LINES_PER_CHUNK))
         con.commit()
 
 
@@ -228,6 +228,7 @@ def process_all_files(cxsmiles_dir, outdir, n_lines_per_chunk=N_LINES_PER_CHUNK,
 
         con.close()
 
+    dask_client.shutdown()
 
 def main():
 
@@ -249,13 +250,13 @@ def main():
     parser.add_argument('-f', '--fingerprint', choices=["Morgan"], default="Morgan", required=False, #nargs=None,
                         help="fingerprint to use")
 
-    parser.add_argument( '--n_cpus', type=int, required=False, default=N_CPUS,
+    parser.add_argument( '--n_cpus', type=int, required=False, default=config.N_CPUS,
                         help="Number of cpus to use")
 
     parser.add_argument( '--work_in_memory', action="store_true", default=False,
                         help="if work in memory, database will be created in memory and dumped to file after completion")
 
-    parser.add_argument('-n', '--n_lines_to_chunk', type=int, default=N_LINES_PER_CHUNK,
+    parser.add_argument('-n', '--n_lines_to_chunk', type=int, default=config.N_LINES_PER_CHUNK,
                         help="Number of lines to chunkenize input files for parallel processing. Default: %(default)s")
 
 
@@ -264,17 +265,10 @@ def main():
 
     args = parser.parse_args()
     print(args)
-    dask_client = get_parallel_client()
-    process_all_files(**vars(args))
-    dask_client.shutdown()
+    create_db_from_multiple_files(**vars(args))
 
-def testCreate():
-    cxsmiles_dir = "/home/ruben/oxford/enamine/cxsmiles"  # Enamine_REAL_HAC_21_22_CXSMILES.cxsmiles.bz2"
-    fp_outdir = "/home/ruben/oxford/enamine/fingerprints"
-    process_all_files(cxsmiles_dir, fp_outdir)
 
 if __name__ == "__main__":
-    # testCreate()
     main()
 
 

@@ -2,7 +2,9 @@
 import os
 import tempfile
 
+FINGERPRINT_TYPE="morgan" #pharmacophore
 FINGERPRINT_NBITS=2048
+FINGERPRINT_RADIUS=2
 N_LINES_PER_CHUNK = int(5e5) # int(1e6)
 N_CPUS = 1
 DASK_WORKER_MEMORY = '8GB'

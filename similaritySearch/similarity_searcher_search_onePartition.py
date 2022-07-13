@@ -11,7 +11,7 @@ import numpy as np
 
 from similaritySearch.compute_fingerprints import get_fingerPrint_as_npBool, \
     decompressFingerprint_npStr
-from similaritySearch.similaritySearchConfig import FINGERPRINT_NBITS, USE_DASK_FOR_SEARCH
+import similaritySearch.similaritySearchConfig as config
 from similaritySearch.compute_metrics import jaccard_vectorized, jaccard_numba, \
     tversky_numba
 from utils.parallelUtils import get_parallel_client
@@ -94,7 +94,7 @@ def process_chunk_using_numba(query_fps_mat, db_fps_mat, n_hits_per_smi, metric_
 
 def process_one_subFile_by_chunks(query_fps_mat, fileNum_chunkFname, n_hits_per_smi, process_chunk_fun,
                                   n_mols_per_chunk=1000000, metric_fun= jaccard_numba, verbose=False):
-
+    assert len(query_fps_mat.shape) > 1, "Error query_fps_mat should be of rank 2"
     file_num, chunk_fname = fileNum_chunkFname
     initial_time = datetime.datetime.now()
     if verbose: print( "[%s]: Processing %s: %s"%(initial_time.strftime("%c"), file_num, chunk_fname))
@@ -111,7 +111,7 @@ def process_one_subFile_by_chunks(query_fps_mat, fileNum_chunkFname, n_hits_per_
         bytes_ = f.read(chunkSize)
         i=0
         while bytes_:
-            db_many_fps_bool = decompressFingerprint_npStr( bytes_ ).reshape(-1, FINGERPRINT_NBITS)
+            db_many_fps_bool = decompressFingerprint_npStr( bytes_ ).reshape(-1, config.FINGERPRINT_NBITS)
             found_similarities, idxs, n_hits_found = process_chunk_fun( query_fps_mat, db_many_fps_bool, n_hits_per_smi, metric_fun )
             idxs[:, : n_hits_found] += i
             idxs = np.stack([file_num*np.ones_like(idxs), idxs], axis = -1 )
@@ -125,9 +125,8 @@ def process_one_subFile_by_chunks(query_fps_mat, fileNum_chunkFname, n_hits_per_
 
 def search_smi_list(query_smi_list, database_dir, n_hits_per_smi=30, output_name=None, backend="numpy",
                     metric="Tanimoto", verbose=True, n_cpus=1):
-    print(backend, metric)
-    starting_time = time.time()
 
+    starting_time = time.time()
     def compute_query_fp( qsmi_list):
         fps=[]
         for qsmi in qsmi_list:
@@ -145,21 +144,36 @@ def search_smi_list(query_smi_list, database_dir, n_hits_per_smi=30, output_name
     query_fps = list(query_fps)
 
     query_fps = np.stack(query_fps, axis=0) # N_queriesxfingerprint_n_bits type boolean (wasting 7/8 memory but faster)
+    resultsDict, n_found = search_fps_matrix(query_fps, database_dir, n_hits_per_smi=n_hits_per_smi,
+                                             query_smi_list=query_smi_list, output_name=output_name, backend=backend,
+                                             metric=metric, verbose=verbose, n_cpus=n_cpus)
+    total_time = time.time() - starting_time
+    if verbose: print("Total time for %d smi: %s" % ( n_found, str(datetime.timedelta(seconds=total_time))))
+    return resultsDict
+
+def search_fps_matrix(query_fps, database_dir, n_hits_per_smi=30, query_smi_list=None, output_name=None, backend="numpy",
+                    metric="Tanimoto", verbose=True, n_cpus=1):
 
     matched_similarities= np.ones( (len(query_fps), n_hits_per_smi) ) * -1              #query_id, hit_num, similarity
     matched_ids = np.ones( (len(query_fps), n_hits_per_smi, 2), dtype= np.int64 ) * -1  #query_id, hit_num, [ file_id, hit_id]
-
+    if query_smi_list is None:
+        query_smi_list = ["q%d"%i for i in range(query_fps.shape[0])]
     kwargs = {}
-    if backend =="numpy":
+
+    if backend == "numpy":
          process_chunk_fun = process_chunk_using_numpy
          assert metric == "Tanimoto", "Error, numpy backend only supports Tanimoto metric"
-         assert  isinstance(query_smi_list[0],str) or len(query_smi_list[0]) ==1, "Error, numpy backend is not available when computing similarity with multiplicity > 1"
-    elif backend =="numba":
+         assert isinstance(query_smi_list[0],str) or len(query_smi_list[0]) ==1, "Error, numpy backend is not available when computing similarity with multiplicity > 1"
+    elif backend == "numba":
         process_chunk_fun = process_chunk_using_numba
         if metric == "Tanimoto":
             kwargs["metric_fun"] = jaccard_numba
-        else:
+        elif metric ==  "Tversky":
             kwargs["metric_fun"] = tversky_numba
+        elif callable(metric):
+            kwargs["metric_fun"] = metric
+        else:
+            raise ValueError(f"Metric {metric} is not a valid option")
 
     else:
         raise ValueError("Error, not valid backend %s"%backend)
@@ -171,9 +185,9 @@ def search_smi_list(query_smi_list, database_dir, n_hits_per_smi=30, output_name
 
     fingerprints_dir = os.path.join(database_dir, "fingerprints")
     filenames = filter( lambda x:  x.endswith(".fingerprints.BitVect"), sorted(os.listdir(fingerprints_dir)))
-    filenames =  list( map( lambda x:  os.path.join(fingerprints_dir,x), filenames ) )
+    filenames = list( map( lambda x:  os.path.join(fingerprints_dir,x), filenames ) )
 
-    if USE_DASK_FOR_SEARCH:
+    if config.USE_DASK_FOR_SEARCH:
         bag = db.from_sequence( enumerate(filenames)).map(process_one_subFile).fold(combine_two_chunk_searches, initial=(matched_similarities, matched_ids))
         matched_similarities, matched_ids = bag.compute()
     else:
@@ -228,15 +242,13 @@ def search_smi_list(query_smi_list, database_dir, n_hits_per_smi=30, output_name
             if verbose: print("No matching compounds were found")
 
     con.close()
-    total_time = time.time() - starting_time
-    if verbose: print("Total time for %d smi: %s" % ( n_found, str(datetime.timedelta(seconds=total_time))))
     for key in resultsDict:
         resultsDict[key].sort(key=lambda x: -x[0])
 
     if output_name:
         with open(output_name, "w") as f:
             json.dump(resultsDict, f)  # >>> data = json.loads(json_str, object_pairs_hook=OrderedDict)
-    return resultsDict
+    return resultsDict, n_found
 
 
 def mainSearch():
@@ -273,14 +285,14 @@ def mainSearch():
     query_smi_list = [ x.strip().split(",") for x in query_smi_list]
     assert len(query_smi_list) >0, "Error, no smiles provided"
     # print(query_smi_list)
-    if USE_DASK_FOR_SEARCH:
+    if config.USE_DASK_FOR_SEARCH:
         dask_client = get_parallel_client()
 
     # numba.set_num_threads(multiprocessing.cpu_count()/n_dask_workers)
     search_smi_list(query_smi_list, args.database_dir, n_hits_per_smi=args.n_hits_per_smi, output_name=args.output_name,
                     backend=args.backend, metric = args.metric, n_cpus=args.n_cpus,
                     verbose=args.verbose)
-    if USE_DASK_FOR_SEARCH:
+    if config.USE_DASK_FOR_SEARCH:
         dask_client.shutdown()
     print("%s search done!"%args.database_dir)
 

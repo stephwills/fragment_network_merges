@@ -11,6 +11,7 @@ def jaccard_vectorized(x,y):
   return intersections_count / union
 
 
+
 @numba.jit( nopython=True, cache=True)
 def jaccard_numba(query_fp, db_fp):
 
@@ -31,6 +32,19 @@ def tversky_numba(query_fp, db_fp, alpha=0.3, beta=0.7):
     return res
 
 
+@numba.jit( nopython=True, cache=True)
+def fraction_of_query_on_bits(query_fp, db_fp):
+
+    n11 = np.sum((query_fp == 1) & (db_fp == 1))
+    score = n11 / np.sum(query_fp)
+    return score
+
+@numba.jit( nopython=True, cache=True)
+def one_minus_fraction_of_query_on_bits(query_fp, db_fp):
+
+    n11 = np.sum((query_fp == 1) & (db_fp == 1))
+    score = 1 - n11 / np.sum(query_fp)
+    return score
 
 def _getTestInput():
   # merge_smi = 'Cc1ccc([C@@](N)(O)OOCc2ccccc2)cc1F'
@@ -54,10 +68,10 @@ def testTanimoto():
   from rdkit import DataStructs
 
   f1_smi, f2_smi, merge_smi = _getTestInput()
-  from similaritySearch.compute_fingerprints import get_fingerPrint
-  fp1 = get_fingerPrint(f1_smi)
-  fp2 = get_fingerPrint(f2_smi)
-  fp_merge = get_fingerPrint(merge_smi)
+  from similaritySearch.compute_fingerprints import get_fingerprint
+  fp1 = get_fingerprint(f1_smi)
+  fp2 = get_fingerprint(f2_smi)
+  fp_merge = get_fingerprint(merge_smi)
 
   print("smi1, smi2", DataStructs.FingerprintSimilarity(fp1, fp2))
   print("smi1, merge_smi", DataStructs.FingerprintSimilarity(fp1, fp_merge))
@@ -66,13 +80,13 @@ def testTanimoto():
 
 def testTversky():
   from rdkit import DataStructs
-  from similaritySearch.compute_fingerprints import get_fingerPrint
+  from similaritySearch.compute_fingerprints import get_fingerprint
 
   f1_smi, f2_smi, merge_smi = _getTestInput()
 
-  fp_merge = get_fingerPrint(merge_smi)
-  fp1 = get_fingerPrint(f1_smi)
-  fp2 = get_fingerPrint(f2_smi)
+  fp_merge = get_fingerprint(merge_smi)
+  fp1 = get_fingerprint(f1_smi)
+  fp2 = get_fingerprint(f2_smi)
 
   tversky_params = (0.3, 0.7)
   sim1 = DataStructs.FingerprintSimilarity(fp_merge, fp1,

@@ -5,8 +5,7 @@ import time
 from argparse import ArgumentParser
 from subprocess import check_call, check_output
 import re
-from similaritySearch.similaritySearchConfig import SHARED_TMP, DASK_DISTRIBUTED__COMM__TIMEOUTS__CONNECT, PATH, \
-  PYTHON_CLUSTER, WAIT_TIME_LAUNCH_QUEUE
+import similaritySearch.similaritySearchConfig as config
 from similaritySearch.similarity_searcher_collect_results import combine_search_jsons
 from utils.send_to_condor import submit_to_condor
 
@@ -40,8 +39,8 @@ def launch_searcher(run_locally=False, **kwargs):
   partition_name = kwargs["database_dir"]
   output_name = os.path.join( kwargs["working_dir"], os.path.basename(partition_name).split(".")[0]+".json")
   kwargs["output_name"] = output_name
-  kwargs["DASK_DISTRIBUTED__COMM__TIMEOUTS__CONNECT"] = DASK_DISTRIBUTED__COMM__TIMEOUTS__CONNECT
-  kwargs["PATH"] = PATH
+  kwargs["DASK_DISTRIBUTED__COMM__TIMEOUTS__CONNECT"] = config.DASK_DISTRIBUTED__COMM__TIMEOUTS__CONNECT
+  kwargs["PATH"] = config.PATH
 
   if kwargs.get("dask_worker_memory", "-1") == "-1":
     kwargs["dask_worker_memory"] = " "
@@ -71,7 +70,7 @@ def launch_searcher(run_locally=False, **kwargs):
     cmd_args += " -v "
 
   if not run_locally:
-    python = " " + PYTHON_CLUSTER + " "
+    python = " " + config.PYTHON_CLUSTER + " "
     # cmd = cmd_condor + python + cmd_args +'"'
     cmd =  python + cmd_args
     cmd = cmd % kwargs
@@ -136,7 +135,7 @@ def globalSearch():
   kwargs = vars( args )
 
   if  not kwargs["run_locally"]:
-    tmpdir = SHARED_TMP
+    tmpdir = config.SHARED_TMP
     jobIdAlive = lambda x: True
   else:
     tmpdir = tempfile.tempdir
@@ -181,7 +180,7 @@ def globalSearch():
         break
       else:
         print("waiting results. Remaining: %d"%(remaining))
-        time.sleep(WAIT_TIME_LAUNCH_QUEUE)
+        time.sleep(config.WAIT_TIME_LAUNCH_QUEUE)
     output_names, jobIds = zip(*results_names)
     combined_json = combine_search_jsons(output_names)
     with open(args.output_name, "w") as f:
