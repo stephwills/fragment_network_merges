@@ -144,7 +144,6 @@ merge/run_focused_query.py
 *docking_score.py
 filter/*_ss.py
 tests/*_ss.py
-tests/test_data/*ss*
 analysis/
 data_manager/
 
