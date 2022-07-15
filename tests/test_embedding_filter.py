@@ -8,7 +8,7 @@ import numpy as np
 from filter.embedding_filter import EmbeddingFilter
 from merge.preprocessing import get_mol
 from rdkit import Chem
-from utils.filter_utils import get_mcs, remove_xe
+from utils.filter_utils import get_mcs, remove_xe, calc_unconstrained_energy
 from utils.utils import get_distance
 
 filter = EmbeddingFilter()
@@ -45,7 +45,7 @@ class TestEmbeddingFilter(unittest.TestCase):
         """Tests the energy calculated correctly"""
         energy = 72.43
         mol = Chem.MolFromSmiles(smi)
-        test_unconstrained_energy = round(filter.calc_unconstrained_energy(mol), 2)
+        test_unconstrained_energy = round(calc_unconstrained_energy(mol, 50), 2)
         self.assertEqual(energy, test_unconstrained_energy)
 
     def test_filter_failing(self):

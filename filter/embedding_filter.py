@@ -13,12 +13,9 @@ from filter.generic_filter import Filter_generic
 from joblib import Parallel, delayed
 from rdkit import Chem, RDLogger
 from rdkit.Chem import AllChem, Mol, rdForceFieldHelpers, rdmolfiles
-from utils.filter_utils import (
-    ConstrainedEmbedMatches,
-    add_coordinates,
-    get_mcs,
-    remove_xe,
-)
+from utils.filter_utils import (ConstrainedEmbedMatches, add_coordinates,
+                                calc_energy, calc_unconstrained_energy,
+                                get_mcs, remove_xe)
 from utils.utils import get_distance
 
 RDLogger.DisableLog("rdApp.*")
@@ -83,30 +80,6 @@ class EmbeddingFilter(Filter_generic):
                 A.RemoveAtom(clash)  # remove atoms from one fragment
         return A, B
 
-    @staticmethod
-    def calc_energy(mol: Mol) -> float:
-        """
-        Calculate energy of molecule.
-        """
-        mol_energy = AllChem.UFFGetMoleculeForceField(mol).CalcEnergy()
-        return mol_energy
-
-    def calc_unconstrained_energy(
-        self, og_mol: Mol, n_conf: int = config_filter.N_CONFORMATIONS
-    ) -> float:
-        """
-        Calculate average energy of multiple unconstrained conformations of a molecule.
-        """
-        unconstrained_energies = []
-        for i in range(n_conf):  # generate conformations and calculate energy
-            mol = Chem.Mol(og_mol)
-            AllChem.EmbedMolecule(mol)
-            AllChem.UFFOptimizeMolecule(mol)
-            e = self.calc_energy(mol)
-            unconstrained_energies.append(e)
-        # calculate the average of all the energies
-        avg = sum(unconstrained_energies) / len(unconstrained_energies)
-        return avg
 
     def embedding(
         self, fragA: Mol, fragB: Mol, merge_mol: Mol, synth: Mol, atom_clash_dist: float = config_filter.ATOM_CLASH_DIST
@@ -228,9 +201,9 @@ class EmbeddingFilter(Filter_generic):
         else:
             for embedded_mol in embedded_mols:
                 # energy of constrained conformation
-                const_energy = self.calc_energy(embedded_mol)
+                const_energy = calc_energy(embedded_mol)
                 # energy of avg unconstrained conformation
-                unconst_energy = self.calc_unconstrained_energy(merge, n_conf)
+                unconst_energy = calc_unconstrained_energy(merge, n_conf)
                 # if the energy of the constrained conformation is less, then pass filter
                 if const_energy <= unconst_energy:
                     result = True
@@ -253,7 +226,7 @@ class EmbeddingFilter(Filter_generic):
         self, cpus: int = config_filter.N_CPUS_FILTER_PAIR, **kwargs
     ) -> Tuple[list, list]:
         """
-        Runs the descriptor filter on all the SMILES in parallel.
+        Runs the overlap filter on all the SMILES in parallel.
 
         :param cpus: number of CPUs for parallelization
         :type cpus: int

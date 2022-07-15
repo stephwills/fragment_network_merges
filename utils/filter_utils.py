@@ -11,6 +11,30 @@ from rdkit.Chem import AllChem, Mol, rdFMCS
 from rdkit.Chem.AllChem import *
 
 
+def calc_energy(mol: Mol) -> float:
+    """
+    Calculate energy of molecule.
+    """
+    mol_energy = AllChem.UFFGetMoleculeForceField(mol).CalcEnergy()
+    return mol_energy
+
+
+def calc_unconstrained_energy(og_mol: Mol, n_conf: int) -> float:
+    """
+    Calculate average energy of multiple unconstrained conformations of a molecule.
+    """
+    unconstrained_energies = []
+    for i in range(n_conf):  # generate conformations and calculate energy
+        mol = Chem.Mol(og_mol)
+        AllChem.EmbedMolecule(mol)
+        AllChem.UFFOptimizeMolecule(mol)
+        e = calc_energy(mol)
+        unconstrained_energies.append(e)
+    # calculate the average of all the energies
+    avg = sum(unconstrained_energies) / len(unconstrained_energies)
+    return avg
+
+
 def add_coordinates(fragment: Mol, substructure: Mol, atom_matches: Tuple) -> Mol:
     """
     Function to add 3D coordinates to a substructure (e.g. MCS) from the corresponding atoms from the original fragment.
@@ -89,9 +113,9 @@ def remove_ligand(pdb_file: str) -> str:
     new_filename = pdb_file.replace(".pdb", "_nolig.pdb")
     if not os.path.exists(new_filename):
         cmd.reinitialize()
-        cmd.load(pdb_file, 'complex')
-        cmd.extract('hets', 'complex and HETATM')
-        cmd.save(new_filename, 'complex')
+        cmd.load(pdb_file, "complex")
+        cmd.extract("hets", "complex and HETATM")
+        cmd.save(new_filename, "complex")
         # print("ligand removed")
     else:
         print("apo file exists", new_filename)
