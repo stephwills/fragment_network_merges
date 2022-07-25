@@ -1,6 +1,8 @@
 import numba
 import numpy as np
+from scipy.special import logsumexp
 
+from similaritySearch import similaritySearchConfig as config
 
 def jaccard_vectorized(x,y):
   intersections_count= x.astype(np.float32) @ y.T
@@ -11,8 +13,7 @@ def jaccard_vectorized(x,y):
   return intersections_count / union
 
 
-
-@numba.jit( nopython=True, cache=True)
+@numba.jit(**config.NUMBA_kwARGS)
 def jaccard_numba(query_fp, db_fp):
 
     n11 = np.sum((query_fp == 1) & (db_fp == 1))
@@ -21,7 +22,7 @@ def jaccard_numba(query_fp, db_fp):
     return jac
 
 
-@numba.jit( nopython=True, cache=True)
+@numba.jit(**config.NUMBA_kwARGS)
 def tversky_numba(query_fp, db_fp, alpha=0.3, beta=0.7):
 
     query_1 = (query_fp == 1)
@@ -31,20 +32,70 @@ def tversky_numba(query_fp, db_fp, alpha=0.3, beta=0.7):
     res = n11 / (n11 + alpha*n10 +beta*n01)
     return res
 
-
-@numba.jit( nopython=True, cache=True)
+@numba.jit(**config.NUMBA_kwARGS)
 def fraction_of_query_on_bits(query_fp, db_fp):
 
     n11 = np.sum((query_fp == 1) & (db_fp == 1))
     score = n11 / np.sum(query_fp)
     return score
 
-@numba.jit( nopython=True, cache=True)
+@numba.jit(**config.NUMBA_kwARGS)
 def one_minus_fraction_of_query_on_bits(query_fp, db_fp):
 
     n11 = np.sum((query_fp == 1) & (db_fp == 1))
     score = 1 - n11 / np.sum(query_fp)
     return score
+
+@numba.jit(**config.NUMBA_kwARGS)
+def jaccard_weighted_numba(query_fp, db_fp, log_fp_frequency): #https://arxiv.org/pdf/1902.03402.pdf
+
+    fp = np.stack((query_fp, db_fp), 0).astype(np.float64)
+    fp = fp * log_fp_frequency
+    # jac = np.sum(fp.min(axis=0)/fp.max(axis=0))
+    jac = 0.
+    for i in range(query_fp.shape[0]):     ### np.min(x, axis=0) is not supported, thus the loop
+        numerator = min(fp[0,i], fp[1,i])
+        denominator = max(fp[0,i], fp[1,i])
+        if denominator > 0.:
+            jac += numerator/denominator
+
+    return jac
+
+@numba.jit(**config.NUMBA_kwARGS)
+def fp_bits_frequency(query_fp, db_fp, bits_logprob):
+    positive_bits = (query_fp == 1) & (db_fp == 1)
+    return np.sum(positive_bits / bits_logprob)
+
+
+@numba.njit(cache=True, parallel=True, nogil=True)
+def numba_logsumexp_stable(p):
+    n, m = p.shape
+    out = np.zeros(n)
+    for i in numba.prange(n):
+        p_max = np.max(p[i])
+        res = 0
+        for j in range(m):
+            res += np.exp(p[i, j] - p_max)
+        res = np.log(res) + p_max
+        out[i] = res
+    return out
+
+@numba.jit(**config.NUMBA_kwARGS)
+def fp_bits_frequency2D(query_fp, db_fp, bits_logprob2D):
+    """
+    Assuming only depth 1 in conditional dependencies: P(bi) = sum_i P(bi|bj)
+    db_fp_frequency_weights := P(bi)
+    db_fp_frequency2D_weights := P(bi,bj) = P(bi|bj)P(bj)
+    P(bi|bj) := db_fp_frequency2D_weights / db_fp_frequency_weights
+    P(bi) = ((positive_bits*positive_bits.T) * (db_fp_frequency2D_weights / db_fp_frequency_weights)).sum(0)
+    """
+    positive_bits = (query_fp == 1) & (db_fp == 1)
+    postive_bits_mask = positive_bits.reshape(1,-1) & positive_bits.reshape(-1,1)
+    postive_bits_mask = postive_bits_mask
+    # with numba.objmode(logprob_bits='float64[:]'): #TODO: Implement logsumexp in numba to speed up code
+        # logprob_bits = logsumexp(postive_bits_mask*bits_logprob2D, axis=0, return_sign=False)
+    logprob_bits = numba_logsumexp_stable(postive_bits_mask * bits_logprob2D)
+    return logprob_bits.sum()
 
 def _getTestInput():
   # merge_smi = 'Cc1ccc([C@@](N)(O)OOCc2ccccc2)cc1F'

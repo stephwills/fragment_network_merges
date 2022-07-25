@@ -91,41 +91,20 @@ def launch_searcher(run_locally=False, **kwargs):
   return (output_name, jobId)
 
 def globalSearch():
-  import sys
-  import argparse
+  from similaritySearch.similarity_searcher_search_onePartition import add_common_arguments
 
   parser = ArgumentParser(prog="fast_similarity_search",
                           description="Find the K most similar compounds in the database")
 
-  parser.add_argument('smiles_query', type=argparse.FileType('r'), default=sys.stdin, #nargs=None,
-                      help="smiles file with as many smiles as rows")
+  add_common_arguments(parser)
 
   parser.add_argument('-d', '--database_dirs', nargs="+", help="the directory(s) where compounds database was compiled", required=True)
-
-  parser.add_argument('-m', '--metric', choices=["Tanimoto", "Tversky"], default="Tversky", #nargs=None,
-                      required=False,
-                      help="metric to use")
-
-  parser.add_argument('-n', '--n_hits_per_smi', type=int, default=30,
-                      help="K highest score molecules to retrieve per query smiles ")
-
-  parser.add_argument('-b', '--backend', choices=["numpy", "numba"], default="numba", required=False,
-                      help="computation backend ")
 
   parser.add_argument('-w', '--working_dir', type=str, required=True,
                       help="The directory where per partition results will be saved")
 
-  parser.add_argument('--n_cpus', type=int, default=1,
-                      help="number of cpus to use ")
-
   parser.add_argument('-l', '--run_locally', action="store_true",
                       help="run computations locally instead submitting to condor") #TODO: change that from boolean to choices {local,condor, slurm...}
-
-  parser.add_argument('-o', '--output_name', type=str, required=True,
-                      help="The fname for a json file where search results will be stored")
-
-  parser.add_argument('-v', '--verbose', action="store_true", default=False,
-                      help="Print to stdout working information ")
 
   args = parser.parse_args()
   query_smi_str = args.smiles_query.read()

@@ -1,8 +1,11 @@
 import datetime
+import io
 import os
 import sqlite3
 import subprocess
 import tempfile
+
+import numpy as np
 import pandas as pd
 import time
 import csv
@@ -12,7 +15,7 @@ import dask.dataframe as dd
 from dask.distributed import futures_of, as_completed
 from joblib import Parallel, delayed
 
-from similaritySearch.compute_fingerprints import  computeFingerprint_np_Str
+from similaritySearch.compute_fingerprints import get_fingerPrint_as_npBool
 import similaritySearch.similaritySearchConfig as config
 from utils.parallelUtils import get_parallel_client
 
@@ -87,7 +90,7 @@ def process_cxsmi_file(fname, compunds_db_fname, binaries_dir, n_lines_per_chunk
 
     starting_time = time.time()
 
-    print( fname )
+    print(fname)
     with tempfile.TemporaryDirectory(dir=config.TMP_DIR) as tmpdir:
         print(tmpdir)
 
@@ -126,17 +129,21 @@ def process_cxsmi_file(fname, compunds_db_fname, binaries_dir, n_lines_per_chunk
             smis = []
             ids_set = set([])
             n_fingerprints =0
+            fp_bits_count_2d = np.zeros((config.FINGERPRINT_NBITS, config.FINGERPRINT_NBITS), dtype=np.int64)
             with open(binary_name, "wb") as bin_f:
-                for row in data.itertuples(index=False):
-                    smi, cid = row[0], row[1]
-                    fp = computeFingerprint_np_Str(smi)
+                for row in data.itertuples():
+                    i, smi, cid = row
+                    fp = get_fingerPrint_as_npBool(smi)
                     if fp is not None and cid not in ids_set:
+                        fp_bits_count_2d += fp[:,None] * fp[None,:]
                         ids_set.add(cid)
+                        fp = np.packbits(fp).tobytes()
                         bin_f.write(fp)
                         smis.append(smi)
-                        ids.append(cid )
+                        ids.append(cid)
                         n_fingerprints+=1
-
+                    # if i == 100:
+                    #     import warnings; warnings.warn("DEBUG!!!"); break
             id_table=  pd.DataFrame( (cid, chunked_basename, i) for i,cid in enumerate(ids) )
             id_table.columns = ["compoundId", "fileSource", "rowNum"]
 
@@ -144,7 +151,7 @@ def process_cxsmi_file(fname, compunds_db_fname, binaries_dir, n_lines_per_chunk
             smis_table.columns = ["compoundId", "smi" ]
             print("%s fingenprints computed (%s s)" % (chunked_basename, time.time() - t), flush=True)
 
-            return chunked_basename, id_table, smis_table
+            return chunked_basename, id_table, smis_table, fp_bits_count_2d
 
         b = db.from_sequence(chunked_names).map( process_one_chunkedFile )
         b = b.persist()
@@ -152,25 +159,30 @@ def process_cxsmi_file(fname, compunds_db_fname, binaries_dir, n_lines_per_chunk
 
         con = sqlite3.connect( compunds_db_fname)
         total_count = 0
+        fp_bits_count_2d = np.zeros((config.FINGERPRINT_NBITS, config.FINGERPRINT_NBITS), dtype=np.int64)
         for fut in as_completed(futures_b):
             for res in fut.result():
-                (chunked_basename, compounds_df, smiles_df) = res
+                (chunked_basename, compounds_df, smiles_df, _fp_bits_count_2d) = res
                 # print( compounds_df.query("rowNum==0"))
                 compounds_df.to_sql("compounds", con, index=False, if_exists="append")
                 smiles_df.to_sql("smiles", con, index=False, if_exists="append")
+                fp_bits_count_2d += _fp_bits_count_2d
                 con.commit()
                 total_count+= len(compounds_df)
                 print("%s was commited. Processed smis: %d"%(chunked_basename, total_count), flush=True)
+
+
 
         con.commit()
         con.close()
     total_time = time.time() - starting_time
     print( "Total time for %s ( %d smi): %s"%(fname, total_count, str(datetime.timedelta(seconds=total_time)) ))
+    return fp_bits_count_2d
 
 def create_db_from_multiple_files(cxsmiles_dir, outdir, n_lines_per_chunk=config.N_LINES_PER_CHUNK,
-                                  work_in_memory=False, smi_colIdx=0, cid_colIdx=1, *args, **kwargs):
-    dask_client = get_parallel_client()
-    actual_compunds_db_fname = os.path.join( outdir, "compounds.sqlite")
+                                  work_in_memory=False, smi_colIdx=0, cid_colIdx=1, n_cpus=1, *args, **kwargs):
+    dask_client = get_parallel_client(n_workers=n_cpus)
+    actual_compunds_db_fname = os.path.join(outdir, "compounds.sqlite")
     assert  not os.path.exists(actual_compunds_db_fname), "Error, sqlite file %s already existing"%actual_compunds_db_fname
 
     if not os.path.exists(outdir):
@@ -196,14 +208,18 @@ def create_db_from_multiple_files(cxsmiles_dir, outdir, n_lines_per_chunk=config
         cur.execute('''CREATE TABLE smiles
                        (compoundId VARCHAR(20) PRIMARY KEY, smi TEXT)''')
 
-        cur.execute('''CREATE TABLE information
-                       (fingerprintType VARCHAR(50), fingerprintLength INTEGER, numberMoleculesPerBinFile )''')
+        cur.execute('''CREATE TABLE files_information (numberMoleculesPerBinFile INTEGER)''')
+
+        cur.execute('''CREATE TABLE bit_counts_2d_csv (bit_counts_2d_csv TEXT)''')
 
         cur.execute('''CREATE INDEX index_on_smiles ON smiles(compoundId)''')
 
-        cur.execute('INSERT INTO information values (?,?, ?)', ("Morgan", config.FINGERPRINT_NBITS, config.N_LINES_PER_CHUNK))
+        cur.execute('INSERT INTO files_information values (?)', (config.N_LINES_PER_CHUNK,))
         con.commit()
 
+        pd.DataFrame({ k:[v] for k,v in config.__dict__.items() if k.startswith("FINGERPRINT")}).to_sql("fp_parameters",
+                                                                                                      con,
+                                                                                        index=False)
 
         if os.path.isdir(cxsmiles_dir):
             fnames = map(lambda x: os.path.join(cxsmiles_dir, x), os.listdir(cxsmiles_dir))
@@ -214,9 +230,18 @@ def create_db_from_multiple_files(cxsmiles_dir, outdir, n_lines_per_chunk=config
         if not os.path.exists( binaries_dir ):
             os.mkdir( binaries_dir )
 
-        Parallel(n_jobs=1)(delayed(process_cxsmi_file)(fname,compunds_db_fname, binaries_dir,
+        fp_bits_count_2d= Parallel(n_jobs=1)(delayed(process_cxsmi_file)(fname,compunds_db_fname, binaries_dir,
                                                        n_lines_per_chunk, smi_colIdx, cid_colIdx) for fname in fnames)
 
+        fp_bits_count_2d = np.stack(fp_bits_count_2d, 0).sum(0)
+        fp_bits_count = np.diag(fp_bits_count_2d)
+        pd.DataFrame(dict(bit_counts=fp_bits_count)).to_sql("bit_counts", con, index=False)
+
+        df = pd.DataFrame(fp_bits_count_2d)
+        s = io.StringIO()
+        df.to_csv(s, index=False)
+        # df.to_sql("bit_counts_2d", con, index=False)
+        cur.execute('INSERT INTO bit_counts_2d_csv values (?)', (s.getvalue(),))
 
         if work_in_memory:
             print( "Dumping db to disk")
@@ -226,9 +251,11 @@ def create_db_from_multiple_files(cxsmiles_dir, outdir, n_lines_per_chunk=config
                 con.backup(bck, pages=-1)
             bck.close()
 
+        con.commit()
         con.close()
 
     dask_client.shutdown()
+    del dask_client
 
 def main():
 
