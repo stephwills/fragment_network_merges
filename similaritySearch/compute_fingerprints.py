@@ -7,7 +7,6 @@ from rdkit.Chem import rdMolDescriptors, AllChem
 from rdkit.DataStructs import cDataStructs, SparseBitVect
 from rdkit.Chem.Pharm2D import Generate
 
-# from similaritySearch.similaritySearchConfig import FINGERPRINT_TYPE, FINGERPRINT_NBITS, FINGERPRINT_RADIUS
 import similaritySearch.similaritySearchConfig as config
 
 def get_fingerprint(smi):
@@ -17,14 +16,15 @@ def get_fingerprint(smi):
     return get_fingerprint_function()(mol)
 
 def _morgan_fingerprint(mol):
-    finprin = rdMolDescriptors.GetMorganFingerprintAsBitVect(
-        mol, radius=config.FINGERPRINT_RADIUS, nBits=config.FINGERPRINT_NBITS, useChirality=0, useBondTypes=1, useFeatures=0)
-    return finprin
+    finprint = rdMolDescriptors.GetMorganFingerprintAsBitVect(
+        mol, radius=config.FINGERPRINT_RADIUS, nBits=config.FINGERPRINT_NBITS, useChirality=config.FINGERPRINT_USE_CHIRALITY,
+        useBondTypes=config.FINGERPRINT_USE_BOND_TYPES, useFeatures=config.FINGERPRINT_USE_FEATURES)
+    return finprint
 
 def _pharmacophore_fingerprint(mol):
     finprin = Generate.Gen2DFingerprint(mol, _get_sigFactory())
-    folded_fp = SparseBitVect(config.FINGERPRINT_NBITS)
     onBits = [elem%config.FINGERPRINT_NBITS for elem in finprin.GetOnBits()]
+    folded_fp = SparseBitVect(config.FINGERPRINT_NBITS)
     folded_fp.SetBitsFromList(onBits)
     return folded_fp
 
@@ -76,14 +76,6 @@ def get_fingerPrint_as_npBool(smi):
     return fp_num
 
 
-def computeFingerprint_np_Str(smi):
-    # print(smi)
-    finPrint = get_fingerPrint_as_npBool(smi)
-    if finPrint is None:
-        return b""
-    # finStr = finPrint.tobytes()
-    finStr = np.packbits(finPrint).tobytes()
-    return finStr
 
 def decompressFingerprint_npStr(fpr_np):
     return np.unpackbits(np.frombuffer(fpr_np, dtype=np.uint8)).astype(bool)
