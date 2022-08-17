@@ -87,8 +87,8 @@ class FilterPipeline:
         self.target = target
 
         # file saving
-        self.pair_working_dir = merge_dir
-        self.pair_output_dir = os.path.join(output_dir, target, merge)
+        self.pair_working_dir = merge_dir  # the pair dir within the working directory
+        self.pair_output_dir = os.path.join(output_dir, target, merge)  # the pair dir within the output directory
         self.failed_fpath = os.path.join(
             self.pair_working_dir, f"{self.merge}_failures.json"
         )
@@ -310,6 +310,13 @@ class FilterPipeline:
                 inner_dict = {"pair": self.merge, "smiles": smi, "synthon": synthon}
                 results_dict[name] = inner_dict
 
+        # save in json files
+        filtered_fname = self.merge + "_filtered.json"
+        filtered_fpath = os.path.join(self.pair_output_dir, filtered_fname)
+
+        with open(filtered_fpath, "w") as f:
+            json.dump(results_dict, f)
+
         return results_dict, self.failures
 
 
@@ -395,8 +402,9 @@ def main():
     filtered_fname = merge + "_filtered.json"
     filtered_fpath = os.path.join(args.output_dir, args.target, merge, filtered_fname)
 
-    with open(filtered_fpath, "w") as f:
-        json.dump(results, f)
+    if not os.path.exists(filtered_fpath):
+        with open(filtered_fpath, "w") as f:
+            json.dump(results, f)
 
     shutil.rmtree(merge_dir)
 

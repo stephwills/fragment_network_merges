@@ -12,7 +12,7 @@ test_fail_sdf = os.path.join("tests", "test_data", "energy_filter_fail_mols.sdf"
 output_sdf = os.path.join("tests", "test_data", "test_energy_filter_output.sdf")
 
 
-class TestDescriptorFilter(unittest.TestCase):
+class TestEnergyFilter(unittest.TestCase):
     """Tests the DescriptorFilter class"""
 
     def test_pass_mols(self):

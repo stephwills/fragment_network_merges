@@ -46,13 +46,19 @@ class DescriptorFilter(Filter_generic):
         self.results = None
 
     @staticmethod
-    def calculate_properties(smi: str) -> int:
+    def calculate_properties(
+        smi: str,
+        rotat_threshold: int = config_filter.ROTAT_THRESHOLD,
+        hac_threshold: int = config_filter.HAC_THRESHOLD,
+    ) -> int:
         """
         Function to calculate the Lipinski descriptors of the molecule and the number of rotatable bonds.
         If >10 rotatable bonds, will fail filter (violations >1).
 
         :param smi: smiles of the merge
         :type smi: str
+        :param hac_filter: apply hac filter of 15 (for similarity search merges)
+        :type hac_filter: bool
 
         :return: the number of Lipinski rules violated
         :rtype: int
@@ -61,8 +67,15 @@ class DescriptorFilter(Filter_generic):
 
         # calculate the properties
         rotat = rdMolDescriptors.CalcNumRotatableBonds(mol)
-        if rotat > 10:  # rule out mols with >10 rb
+        if rotat > rotat_threshold:  # rule out mols with >10 rb
             return 2
+
+        hac = mol.GetNumHeavyAtoms()
+        if (
+            hac < hac_threshold
+        ):  # rule out mols with <15 HAs (for similarity search compounds)
+            return 2
+
         else:
             molw = rdMolDescriptors.CalcExactMolWt(mol)
             alogp = Crippen.MolLogP(mol)
@@ -165,9 +178,7 @@ def main():
                             hits += 1
                             w.write(mol)
                     except Exception as e:
-                        DmLog.emit_event(
-                            "Failed to process molecule", count, smi
-                        )
+                        DmLog.emit_event("Failed to process molecule", count, smi)
                         errors += 1
 
     end = time.time()

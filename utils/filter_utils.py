@@ -26,12 +26,14 @@ def calc_unconstrained_energy(og_mol: Mol, n_conf: int) -> float:
     unconstrained_energies = []
     for i in range(n_conf):  # generate conformations and calculate energy
         mol = Chem.Mol(og_mol)
-        AllChem.EmbedMolecule(mol)
+        AllChem.EmbedMolecule(mol, randomSeed=i*10)
         AllChem.UFFOptimizeMolecule(mol)
         e = calc_energy(mol)
         unconstrained_energies.append(e)
+    # print(unconstrained_energies)
     # calculate the average of all the energies
     avg = sum(unconstrained_energies) / len(unconstrained_energies)
+    # print(avg)
     return avg
 
 

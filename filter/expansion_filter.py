@@ -113,17 +113,23 @@ class ExpansionFilter(Filter_generic):
         :return: whether molecule passes (True) or fails (False) filter
         :rtype: bool
         """
-        merge = Chem.MolFromSmiles(smiles)
-        mcs = get_mcs(fragmentA, merge)
-        mcs_removed_mols = [x for x in self._atom_remover(merge, mcs)]
-        synthon = remove_xe(Chem.MolFromSmiles(synthon))
-        result = False
-        for mol in mcs_removed_mols:
-            synthon_mcs = get_mcs(mol, synthon)
-            if synthon_mcs:
-                result = self._check_synthon_mcs(synthon_mcs)
+        try:
+            merge = Chem.MolFromSmiles(smiles)
+            mcs = get_mcs(fragmentA, merge)
+            mcs_removed_mols = [x for x in self._atom_remover(merge, mcs)]
+            synthon = remove_xe(Chem.MolFromSmiles(synthon))
+            result = False
+            for mol in mcs_removed_mols:
+                synthon_mcs = get_mcs(mol, synthon)
+                if synthon_mcs:
+                    result = self._check_synthon_mcs(synthon_mcs)
 
-        return result
+            return result
+
+        except Exception as e:  # pass molecules that break the filter
+            print('Failed for smiles', smiles)
+            print(e)
+            return False
 
     def filter_all(
         self, cpus: int = config_filter.N_CPUS_FILTER_PAIR, **kwargs

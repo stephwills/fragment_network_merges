@@ -68,8 +68,10 @@ class EnergyFilter(Filter_generic):
         :rtype: bool
         """
         const_energy = calc_energy(merge)
+        print('constrained', const_energy)
         # energy of avg unconstrained conformation
         unconst_energy = calc_unconstrained_energy(merge, n_conf)
+        print('unconstrained', unconst_energy)
         # if the energy of the constrained conformation is less, then pass filter
         if (const_energy / unconst_energy) >= energy_threshold:
             result = False
@@ -139,15 +141,15 @@ def main():
     count = 0
     hits = 0
     errors = 0
-    print(args.energy_threshold)
-    print(type(args.energy_threshold))
+    # print(args.energy_threshold)
+    # print(type(args.energy_threshold))
     with Chem.SDWriter(args.output_file) as w:
         with Chem.SDMolSupplier(args.input_file) as suppl:
             for mol in suppl:
                 if mol is None:
                     continue
                 else:
-                    print(mol)
+                    # print(mol)
                     count += 1
                     try:
 
