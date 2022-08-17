@@ -111,7 +111,7 @@ class OverlapFilter(Filter_generic):
         self, cpus: int = config_filter.N_CPUS_FILTER_PAIR, **kwargs
     ) -> Tuple[list, list]:
         """
-        Runs the descriptor filter on all the SMILES in parallel.
+        Runs the overlap filter on all the SMILES in parallel.
 
         :param cpus: number of CPUs for parallelization
         :type cpus: int

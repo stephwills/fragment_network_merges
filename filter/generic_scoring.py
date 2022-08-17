@@ -76,7 +76,7 @@ class Score_generic(ABC):
             name = _name.replace("_", "-")
             fname = os.path.basename(pdb_file)
             new_path = os.path.join(self.out_pair_dir, name, fname)
-            shutil.move(pdb_file, new_path)
+            shutil.copy(pdb_file, new_path)
 
     @abstractmethod
     def score_mol(self, **kwargs):

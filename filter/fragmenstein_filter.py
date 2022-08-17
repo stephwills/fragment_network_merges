@@ -75,7 +75,7 @@ class FragmensteinFilter(Filter_generic):
         """
         If filter passes, move the working dir files to the output dir.
         """
-        output_subdir = os.path.join(self.out_pair_dir, name)
+        output_subdir = os.path.join(self.out_pair_dir, name.replace('_', '-'))
         if not os.path.exists(output_subdir):
             os.mkdir(output_subdir)
 
@@ -164,7 +164,7 @@ class FragmensteinFilter(Filter_generic):
             # initialise PyRosetta
             pyrosetta.init(
                 extra_options="""-no_optH false -mute all -ex1 -ex2 -ignore_unrecognized_res false
-                                            -load_PDB_components false -ignore_waters false"""
+                                            -load_PDB_components false -ignore_waters false -constant_seed"""
             )
 
             # get the fragments from the files
@@ -200,7 +200,7 @@ class FragmensteinFilter(Filter_generic):
             G_unbound = data["Energy"]["unbound_ref2015"]["total_score"]  # unbound
             deltaG = G_bound - G_unbound  # calculate energy difference
             comRMSD = data["mRMSD"]  # RMSD between two fragments and merge
-
+            # print(deltaG, comRMSD)
             # get number of fragments used for placement of SMILES
             regarded = 0
             for rmsd in data["RMSDs"]:
@@ -308,10 +308,11 @@ class FragmensteinFilter(Filter_generic):
                     idx = self._get_idx(name)
                     result = (idx, False, None, None, None)
                     res.append(result)
-                except Exception:
+                except Exception as e:
                     error_name = self.names[index]
                     error_smi = self.smis[index]
                     print(f"Error for merge {error_name}, smiles {error_smi}")
+                    print(e)
                     if error_name not in self.errors.keys():
                         self.errors[error_name] = "Non-timeout error"
                         with open(

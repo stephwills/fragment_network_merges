@@ -189,38 +189,44 @@ class EmbeddingFilter(Filter_generic):
         :return: whether molecule passes (True) or fails (False) filter
         :rtype: bool
         """
-        merge = Chem.MolFromSmiles(merge)
-        synthon = Chem.MolFromSmiles(synthon)
-        embedded_mols = self.embedding(fragA, fragB, merge, synthon, atom_clash_dist)
+        try:
+            merge = Chem.MolFromSmiles(merge)
+            synthon = Chem.MolFromSmiles(synthon)
+            embedded_mols = self.embedding(fragA, fragB, merge, synthon, atom_clash_dist)
 
-        result, embedded = False, None
-        if len(embedded_mols) == 0:
-            result = False
-            embedded = None
+            result, embedded = False, None
+            if len(embedded_mols) == 0:
+                result = False
+                embedded = None
 
-        else:
-            for embedded_mol in embedded_mols:
-                # energy of constrained conformation
-                const_energy = calc_energy(embedded_mol)
-                # energy of avg unconstrained conformation
-                unconst_energy = calc_unconstrained_energy(merge, n_conf)
-                # if the energy of the constrained conformation is less, then pass filter
-                if const_energy <= unconst_energy:
-                    result = True
-                    embedded = embedded_mol
-                    break
-                else:
-                    # if constrained energy > energy-threshold-fold greater, then fail filter
-                    ratio = const_energy / unconst_energy
-                    if ratio >= energy_threshold:
-                        result = False
-                        embedded = None
-                    else:
+            else:
+                for embedded_mol in embedded_mols:
+                    # energy of constrained conformation
+                    const_energy = calc_energy(embedded_mol)
+                    # energy of avg unconstrained conformation
+                    unconst_energy = calc_unconstrained_energy(merge, n_conf)
+                    # if the energy of the constrained conformation is less, then pass filter
+                    if const_energy <= unconst_energy:
                         result = True
                         embedded = embedded_mol
                         break
+                    else:
+                        # if constrained energy > energy-threshold-fold greater, then fail filter
+                        ratio = const_energy / unconst_energy
+                        if ratio >= energy_threshold:
+                            result = False
+                            embedded = None
+                        else:
+                            result = True
+                            embedded = embedded_mol
+                            break
 
-        return result, embedded
+            return result, embedded
+
+        except Exception as e:  # pass molecules that break the filter
+            print('Failed for merge', merge)
+            print(e)
+            return False
 
     def filter_all(
         self, cpus: int = config_filter.N_CPUS_FILTER_PAIR, **kwargs

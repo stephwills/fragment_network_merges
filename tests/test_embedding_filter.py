@@ -43,7 +43,7 @@ class TestEmbeddingFilter(unittest.TestCase):
 
     def test_calc_energy(self):
         """Tests the energy calculated correctly"""
-        energy = 72.43
+        energy = 71.85
         mol = Chem.MolFromSmiles(smi)
         test_unconstrained_energy = round(calc_unconstrained_energy(mol, 50), 2)
         self.assertEqual(energy, test_unconstrained_energy)
