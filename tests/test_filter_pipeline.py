@@ -302,7 +302,7 @@ class TestFilterPipeline(unittest.TestCase):
         self.assertIsInstance(results, dict)
         self.assertIsInstance(failures, dict)
 
-        # remove_files()
+        remove_files()
 
 
 if __name__ == "__main__":

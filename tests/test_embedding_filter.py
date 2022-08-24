@@ -11,12 +11,14 @@ from rdkit import Chem
 from utils.filter_utils import get_mcs, remove_xe, calc_unconstrained_energy
 from utils.utils import get_distance
 
+fragalysis_dir = 'tests/test_Fragalysis'
 filter = EmbeddingFilter()
-fragmentA = get_mol("nsp13", "x0212_0B", True)
-fragmentB_passing = get_mol("nsp13", "x0438_0B", True)
-fragmentB_failing = get_mol("nsp13", "x0311_0B", True)
+fragmentA = get_mol("nsp13", "x0212_0B", True, fragalysis_dir)
+fragmentB_failing = get_mol("nsp13", "x0438_0B", True, fragalysis_dir)
+fragmentB_passing = get_mol("nsp13", "x0311_0B", True, fragalysis_dir)
 smi = "CN(CCCC(=O)Nc1cnn(-c2ccccc2)c1)S(=O)(=O)c1ccc(F)cc1"
 synthon = "[Xe]c1ccccc1"
+
 
 
 class TestEmbeddingFilter(unittest.TestCase):
@@ -50,17 +52,29 @@ class TestEmbeddingFilter(unittest.TestCase):
 
     def test_filter_failing(self):
         """Checks that the filter correctly identifies molecules that can be embedded"""
-        passing_case = filter.filter_smi(
-            smi, fragmentA, fragmentB_passing, synthon, 7.0, 50, 1.0
-        )
-        self.assertEqual(passing_case[0], False)
-
-    def test_filter_passing(self):
-        """Checks that the filter correctly identifies molecules that can be embedded"""
         failing_case = filter.filter_smi(
             smi, fragmentA, fragmentB_failing, synthon, 7.0, 50, 1.0
         )
-        self.assertEqual(failing_case[0], True)
+        self.assertEqual(failing_case[0], False)
+
+    def test_filter_passing(self):
+        """Checks that the filter correctly identifies molecules that can be embedded"""
+        passing_case = filter.filter_smi(
+            smi, fragmentA, fragmentB_passing, synthon, 7.0, 50, 1.0
+        )
+        self.assertEqual(passing_case[0], True)
+
+    def test_filter_passing_simsearch(self):
+        simsearch_case = filter.filter_smi(
+            "O=C(NCCc1ccccc1)c1ccc(O)cc1",
+            get_mol("nsp13", "x0208_0A", True, fragalysis_dir),
+            get_mol("nsp13", "x0438_0B", True, fragalysis_dir),
+            None,
+            7.0,
+            50,
+            1.0,
+        )
+        self.assertEqual(simsearch_case[0], True)
 
 
 if __name__ == "__main__":
