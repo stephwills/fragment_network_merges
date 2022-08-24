@@ -67,17 +67,21 @@ class EnergyFilter(Filter_generic):
         :return: whether molecule passes (True) or fails (False) filter
         :rtype: bool
         """
-        const_energy = calc_energy(merge)
-        print('constrained', const_energy)
-        # energy of avg unconstrained conformation
-        unconst_energy = calc_unconstrained_energy(merge, n_conf)
-        print('unconstrained', unconst_energy)
-        # if the energy of the constrained conformation is less, then pass filter
-        if (const_energy / unconst_energy) >= energy_threshold:
-            result = False
-        else:
-            result = True
-        return result
+        try:
+            const_energy = calc_energy(merge)
+            print('constrained', const_energy)
+            # energy of avg unconstrained conformation
+            unconst_energy = calc_unconstrained_energy(merge, n_conf)
+            print('unconstrained', unconst_energy)
+            # if the energy of the constrained conformation is less, then pass filter
+            if (const_energy / unconst_energy) >= energy_threshold:
+                result = False
+            else:
+                result = True
+            return result
+        except Exception as e:
+            print(e)
+            return False
 
     def filter_all(
         self, cpus: int = config_filter.N_CPUS_FILTER_PAIR, **kwargs
