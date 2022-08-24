@@ -12,7 +12,7 @@ from filter.config_filter import config_filter
 from filter.generic_filter import Filter_generic
 from joblib import Parallel, delayed
 from rdkit import Chem, RDLogger
-from rdkit.Chem import AllChem, Mol, rdForceFieldHelpers, rdmolfiles
+from rdkit.Chem import Mol, rdForceFieldHelpers, rdmolfiles
 from utils.filter_utils import (ConstrainedEmbedMatches, add_coordinates,
                                 calc_energy, calc_unconstrained_energy,
                                 get_mcs, remove_xe)
@@ -82,7 +82,7 @@ class EmbeddingFilter(Filter_generic):
 
 
     def embedding(
-        self, fragA: Mol, fragB: Mol, merge_mol: Mol, synth: Mol, atom_clash_dist: float = config_filter.ATOM_CLASH_DIST
+        self, fragA: Mol, fragB: Mol, merge_mol: Mol, synth, atom_clash_dist: float = config_filter.ATOM_CLASH_DIST
     ) -> list:
         """
         Function to embed the full molecule, constraining the atoms that came from each fragment.
@@ -95,8 +95,8 @@ class EmbeddingFilter(Filter_generic):
         :type fragB: rdkit.Chem.Mol
         :param merge_mol: proposed merge
         :type merge_mol: rdkit.Chem.Mol
-        :param synth: synthon from fragment B used for expansion
-        :type synth: rdkit.Chem.Mol
+        :param synth: synthon from fragment B used for expansion if frag net; None if sim search
+        :type synth: rdkit.Chem.Mol or None
         :param atom_clash_dist: minimum distance between atoms to be considered as clashing
         :type atom_clash_dist: float
 
@@ -111,24 +111,45 @@ class EmbeddingFilter(Filter_generic):
         # for each, add coordinates
         mcsA_mols = [add_coordinates(fragA, mcsA, matches) for matches in mcsA_matches]
 
-        # substructure match for fragment B
-        synthB = remove_xe(synth)  # remove the xenon from the synthon
-        synthB_matches = fragB.GetSubstructMatches(synthB)
-        synthB_mols = [
-            add_coordinates(fragB, synthB, matches) for matches in synthB_matches
-        ]
+        if synth:
+            # substructure match for fragment B
+            synthB = remove_xe(synth)  # remove the xenon from the synthon
+            synthB_matches = fragB.GetSubstructMatches(synthB)
+            synthB_mols = [
+                add_coordinates(fragB, synthB, matches) for matches in synthB_matches
+            ]
 
-        # get all possible ref coordinates
-        ref_mols = []  # store ref molecules with different coordinates
-        for _mcsA_mol in mcsA_mols:
-            for _synthB_mol in synthB_mols:
-                # check if atoms overlap
-                mcsA_mol, synthB_mol = self.check_overlap(
-                    _mcsA_mol, _synthB_mol, atom_clash_dist
-                )
-                # combine substructures to get ref molecule
-                ref_mol = Chem.CombineMols(mcsA_mol, synthB_mol)
-                ref_mols.append(ref_mol)
+            # get all possible ref coordinates
+            ref_mols = []  # store ref molecules with different coordinates
+            for _mcsA_mol in mcsA_mols:
+                for _synthB_mol in synthB_mols:
+                    # check if atoms overlap
+                    mcsA_mol, synthB_mol = self.check_overlap(
+                        _mcsA_mol, _synthB_mol, atom_clash_dist
+                    )
+                    # combine substructures to get ref molecule
+                    ref_mol = Chem.CombineMols(mcsA_mol, synthB_mol)
+                    ref_mols.append(ref_mol)
+
+        else:
+            # substructure match for fragment B
+            # identify the atoms that came from fragment B
+            mcsB = get_mcs(merge_mol, fragB)
+            # get all possible matches with fragment B
+            mcsB_matches = fragB.GetSubstructMatches(mcsB)
+            # for each, add coordinates
+            mcsB_mols = [add_coordinates(fragB, mcsB, matches) for matches in mcsB_matches]
+
+            # get all possible ref coordinates
+            ref_mols = []  # store ref molecules with different coordinates
+            for _mcsA_mol in mcsA_mols:
+                for _mcsB_mol in mcsB_mols:
+                    # check if atoms overlap
+                    mcsA_mol, mcsB_mol = self.check_overlap(
+                        _mcsA_mol, _mcsB_mol, atom_clash_dist
+                    )
+                    ref_mol = Chem.CombineMols(mcsA_mol, mcsB_mol)
+                    ref_mols.append(ref_mol)
 
         # Get substructure matches for merge and embed with all sets of coordinates
         all_merge_matches = [
@@ -160,7 +181,7 @@ class EmbeddingFilter(Filter_generic):
         merge: str,
         fragA: Mol,
         fragB: Mol,
-        synthon: str,
+        synthon,  # str if frag net; None if sim search
         energy_threshold: float = config_filter.ENERGY_THRESHOLD,
         n_conf: int = config_filter.N_CONFORMATIONS,
         atom_clash_dist: float = config_filter.ATOM_CLASH_DIST,
@@ -191,7 +212,8 @@ class EmbeddingFilter(Filter_generic):
         """
         try:
             merge = Chem.MolFromSmiles(merge)
-            synthon = Chem.MolFromSmiles(synthon)
+            if synthon:
+                synthon = Chem.MolFromSmiles(synthon)
             embedded_mols = self.embedding(fragA, fragB, merge, synthon, atom_clash_dist)
 
             result, embedded = False, None
@@ -226,7 +248,7 @@ class EmbeddingFilter(Filter_generic):
         except Exception as e:  # pass molecules that break the filter
             print('Failed for merge', merge)
             print(e)
-            return False
+            return False, None
 
     def filter_all(
         self, cpus: int = config_filter.N_CPUS_FILTER_PAIR, **kwargs
@@ -240,10 +262,16 @@ class EmbeddingFilter(Filter_generic):
         :return: list of results (True or False); list of mols (RDKit molecules)
         :rtype: tuple
         """
-        res = Parallel(n_jobs=cpus, backend="multiprocessing")(
-            delayed(self.filter_smi)(smi, self._fragmentA, self._fragmentB, synthon, **kwargs)
-            for smi, synthon in zip(self.smis, self.synthons)
-        )
+        if self.synthons:
+            res = Parallel(n_jobs=cpus, backend="multiprocessing")(
+                delayed(self.filter_smi)(smi, self._fragmentA, self._fragmentB, synthon, **kwargs)
+                for smi, synthon in zip(self.smis, self.synthons)
+            )
+        else:
+            res = Parallel(n_jobs=cpus, backend="multiprocessing")(
+                delayed(self.filter_smi)(smi, self._fragmentA, self._fragmentB, None, **kwargs)
+                for smi in self.smis
+            )
         self.results = [r[0] for r in res]
         self.mols = [r[1] for r in res]
         return self.results, self.mols
@@ -320,7 +348,10 @@ def main():
                     count += 1
                     try:
                         smi = Chem.MolToSmiles(mol)
-                        synthon = mol.GetProp("synthon")
+                        if mol.HasProp("synthon") == 1:
+                            synthon = mol.GetProp("synthon")
+                        else:
+                            synthon = None
                         res, embedded = filter.filter_smi(
                             smi,
                             fragmentA,
@@ -332,7 +363,8 @@ def main():
                         )
                         if res:
                             hits += 1
-                            embedded.SetProp("synthon", synthon)
+                            if mol.HasProp("synthon") == 1:
+                                embedded.SetProp("synthon", synthon)
                             w.write(embedded)
                     except Exception as e:
                         DmLog.emit_event(
