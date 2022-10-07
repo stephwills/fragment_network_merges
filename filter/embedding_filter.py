@@ -2,20 +2,26 @@
 Used for 3D filtering of fragment merges by constrained embedding.
 """
 
+import os
+import sys
 import argparse
 import time
 from typing import Tuple
 
 import numpy as np
-from dm_job_utilities.dm_log import DmLog
 from filter.config_filter import config_filter
 from filter.generic_filter import Filter_generic
 from joblib import Parallel, delayed
 from rdkit import Chem, RDLogger
 from rdkit.Chem import Mol, rdForceFieldHelpers, rdmolfiles
-from utils.filter_utils import (ConstrainedEmbedMatches, add_coordinates,
-                                calc_energy, calc_unconstrained_energy,
-                                get_mcs, remove_xe)
+from utils.filter_utils import (
+    ConstrainedEmbedMatches,
+    add_coordinates,
+    calc_energy,
+    calc_unconstrained_energy,
+    get_mcs,
+    remove_xe,
+)
 from utils.utils import get_distance
 
 RDLogger.DisableLog("rdApp.*")
@@ -80,9 +86,13 @@ class EmbeddingFilter(Filter_generic):
                 A.RemoveAtom(clash)  # remove atoms from one fragment
         return A, B
 
-
     def embedding(
-        self, fragA: Mol, fragB: Mol, merge_mol: Mol, synth, atom_clash_dist: float = config_filter.ATOM_CLASH_DIST
+        self,
+        fragA: Mol,
+        fragB: Mol,
+        merge_mol: Mol,
+        synth,
+        atom_clash_dist: float = config_filter.ATOM_CLASH_DIST,
     ) -> list:
         """
         Function to embed the full molecule, constraining the atoms that came from each fragment.
@@ -138,7 +148,9 @@ class EmbeddingFilter(Filter_generic):
             # get all possible matches with fragment B
             mcsB_matches = fragB.GetSubstructMatches(mcsB)
             # for each, add coordinates
-            mcsB_mols = [add_coordinates(fragB, mcsB, matches) for matches in mcsB_matches]
+            mcsB_mols = [
+                add_coordinates(fragB, mcsB, matches) for matches in mcsB_matches
+            ]
 
             # get all possible ref coordinates
             ref_mols = []  # store ref molecules with different coordinates
@@ -214,7 +226,9 @@ class EmbeddingFilter(Filter_generic):
             merge = Chem.MolFromSmiles(merge)
             if synthon:
                 synthon = Chem.MolFromSmiles(synthon)
-            embedded_mols = self.embedding(fragA, fragB, merge, synthon, atom_clash_dist)
+            embedded_mols = self.embedding(
+                fragA, fragB, merge, synthon, atom_clash_dist
+            )
 
             result, embedded = False, None
             if len(embedded_mols) == 0:
@@ -246,12 +260,12 @@ class EmbeddingFilter(Filter_generic):
             return result, embedded
 
         except Exception as e:  # pass molecules that break the filter
-            print('Failed for merge', merge)
+            print("Failed for merge", merge)
             print(e)
             return False, None
 
     def filter_all(
-        self, cpus: int = config_filter.N_CPUS_FILTER_PAIR, **kwargs
+        self, cpus: int = config_filter.N_CPUS_FILTER_PAIR, *args
     ) -> Tuple[list, list]:
         """
         Runs the overlap filter on all the SMILES in parallel.
@@ -264,12 +278,16 @@ class EmbeddingFilter(Filter_generic):
         """
         if self.synthons:
             res = Parallel(n_jobs=cpus, backend="multiprocessing")(
-                delayed(self.filter_smi)(smi, self._fragmentA, self._fragmentB, synthon, **kwargs)
+                delayed(self.filter_smi)(
+                    smi, self._fragmentA, self._fragmentB, synthon, *args
+                )
                 for smi, synthon in zip(self.smis, self.synthons)
             )
         else:
             res = Parallel(n_jobs=cpus, backend="multiprocessing")(
-                delayed(self.filter_smi)(smi, self._fragmentA, self._fragmentB, None, **kwargs)
+                delayed(self.filter_smi)(
+                    smi, self._fragmentA, self._fragmentB, None, *args
+                )
                 for smi in self.smis
             )
         self.results = [r[0] for r in res]
@@ -277,13 +295,13 @@ class EmbeddingFilter(Filter_generic):
         return self.results, self.mols
 
 
-def main():
+def parse_args(args):
     parser = argparse.ArgumentParser(
         epilog="""
-    python filter/embedding_filter.py --input_file data/toFilter.sdf --output_file results.sdf
-    --fragmentA_file fragmentA.mol --fragmentB_file fragmentB.mol --energy_threshold 10
-    --n_conformations 50 --atom_clash_dist 1.0
-    """
+        python filter/embedding_filter.py --input_file data/toFilter.sdf --output_file results.sdf
+        --fragmentA_file fragmentA.mol --fragmentB_file fragmaentB.mol --energy_threshold 10
+        --n_conformations 50 --atom_clash_dist 1.0
+        """
     )
     # command line args definitions
     parser.add_argument(
@@ -303,6 +321,14 @@ def main():
     )
     parser.add_argument(
         "-b", "--fragmentB_file", required=True, help="fragment B mol file"
+    )
+    parser.add_argument(
+        "-c",
+        "--n_cpus",
+        required=False,
+        help="number of CPUs",
+        type=int,
+        default=os.cpu_count(),
     )
     parser.add_argument(
         "-e",
@@ -325,62 +351,24 @@ def main():
         default=1.0,
         help="max distance between fragment A and B atoms to remove from ref mol for embedding",
     )
+    return parser.parse_args(args)
 
-    args = parser.parse_args()
 
-    filter = EmbeddingFilter()
-    DmLog.emit_event("embedding_filter: ", args)
+def main():
+    from filter.generic_squonk import Squonk_generic
 
-    start = time.time()
-    count = 0
-    hits = 0
-    errors = 0
-
-    fragmentA = rdmolfiles.MolFromMolFile(args.fragmentA_file)
-    fragmentB = rdmolfiles.MolFromMolFile(args.fragmentB_file)
-
-    with Chem.SDWriter(args.output_file) as w:
-        with Chem.SDMolSupplier(args.input_file) as suppl:
-            for mol in suppl:
-                if mol is None:
-                    continue
-                else:
-                    count += 1
-                    try:
-                        smi = Chem.MolToSmiles(mol)
-                        if mol.HasProp("synthon") == 1:
-                            synthon = mol.GetProp("synthon")
-                        else:
-                            synthon = None
-                        res, embedded = filter.filter_smi(
-                            smi,
-                            fragmentA,
-                            fragmentB,
-                            synthon,
-                            args.energy_threshold,
-                            args.n_conf,
-                            args.atom_clash_dist,
-                        )
-                        if res:
-                            hits += 1
-                            if mol.HasProp("synthon") == 1:
-                                embedded.SetProp("synthon", synthon)
-                            w.write(embedded)
-                    except Exception as e:
-                        DmLog.emit_event(
-                            "Failed to process molecule", count, Chem.MolToSmiles(mol)
-                        )
-                        errors += 1
-
-    end = time.time()
-    duration_s = int(end - start)
-    if duration_s < 1:
-        duration_s = 1
-
-    DmLog.emit_event(
-        count, "inputs,", hits, "hits,", errors, "errors.", "Time (s):", duration_s
+    args = parse_args(sys.argv[1:])
+    job = Squonk_generic(
+        "EmbeddingFilter",
+        args,
+        args.input_file,
+        args.output_file,
+        args.fragmentA_file,
+        args.fragmentB_file,
     )
-    DmLog.emit_cost(count)
+    job.execute_job(
+        args.n_cpus, args.energy_threshold, args.n_conformations, args.atom_clash_dist
+    )
 
 
 if __name__ == "__main__":

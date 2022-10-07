@@ -1,13 +1,11 @@
 """
 Used for filtering merges according to calculated descriptors.
 """
-
+import os
 import argparse
-import time
 import sys
 from typing import Tuple
 
-from dm_job_utilities.dm_log import DmLog
 from filter.config_filter import config_filter
 from filter.generic_filter import Filter_generic
 from joblib import Parallel, delayed
@@ -112,7 +110,7 @@ class DescriptorFilter(Filter_generic):
         return result
 
     def filter_all(
-        self, cpus: int = config_filter.N_CPUS_FILTER_PAIR
+        self, cpus: int = config_filter.N_CPUS_FILTER_PAIR, *args
     ) -> Tuple[list, None]:
         """
         Runs the descriptor filter on all the SMILES in parallel.
@@ -124,7 +122,7 @@ class DescriptorFilter(Filter_generic):
         :rtype: tuple
         """
         self.results = Parallel(n_jobs=cpus, backend="multiprocessing")(
-            delayed(self.filter_smi)(smi) for smi in self.smis
+            delayed(self.filter_smi)(smi, *args) for smi in self.smis
         )
         return self.results, self.mols
 
@@ -151,45 +149,25 @@ def parse_args(args):
         required=True,
         help="output sdf file to write filtered SMILES",
     )
+    parser.add_argument(
+        "-c",
+        "--n_cpus",
+        required=False,
+        help="number of CPUs",
+        type=int,
+        default=os.cpu_count()
+    )
     return parser.parse_args(args)
 
 
 def main():
+    from filter.generic_squonk import Squonk_generic
+
     args = parse_args(sys.argv[1:])
-    filter = DescriptorFilter()
-    DmLog.emit_event("descriptor_filter: ", args)
-
-    start = time.time()
-    count = 0
-    hits = 0
-    errors = 0
-
-    with Chem.SDWriter(args.output_file) as w:
-        with Chem.SDMolSupplier(args.input_file) as suppl:
-            for mol in suppl:
-                if mol is None:
-                    continue
-                else:
-                    count += 1
-                    smi = Chem.MolToSmiles(mol)
-                    try:
-                        res = filter.filter_smi(smi)
-                        if res:
-                            hits += 1
-                            w.write(mol)
-                    except Exception as e:
-                        DmLog.emit_event("Failed to process molecule", count, smi)
-                        errors += 1
-
-    end = time.time()
-    duration_s = int(end - start)
-    if duration_s < 1:
-        duration_s = 1
-
-    DmLog.emit_event(
-        count, "inputs,", hits, "hits,", errors, "errors.", "Time (s):", duration_s
+    job = Squonk_generic(
+        "DescriptorFilter", args, args.input_file, args.output_file
     )
-    DmLog.emit_cost(count)
+    job.execute_job(args.n_cpus)
 
 
 if __name__ == "__main__":

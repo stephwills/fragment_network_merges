@@ -2,23 +2,28 @@
 Tests the embedding filter script
 """
 
+import os
 import unittest
+from unittest.mock import patch
 
 import numpy as np
-from filter.embedding_filter import EmbeddingFilter
+from filter.embedding_filter import EmbeddingFilter, main
 from merge.preprocessing import get_mol
 from rdkit import Chem
-from utils.filter_utils import get_mcs, remove_xe, calc_unconstrained_energy
+from utils.filter_utils import calc_unconstrained_energy, get_mcs, remove_xe
 from utils.utils import get_distance
 
-fragalysis_dir = 'tests/test_Fragalysis'
+fragalysis_dir = "tests/test_Fragalysis"
 filter = EmbeddingFilter()
 fragmentA = get_mol("nsp13", "x0212_0B", True, fragalysis_dir)
 fragmentB_failing = get_mol("nsp13", "x0438_0B", True, fragalysis_dir)
 fragmentB_passing = get_mol("nsp13", "x0311_0B", True, fragalysis_dir)
 smi = "CN(CCCC(=O)Nc1cnn(-c2ccccc2)c1)S(=O)(=O)c1ccc(F)cc1"
 synthon = "[Xe]c1ccccc1"
-
+test_sdf = os.path.join("tests", "test_data", "embedding_filter_mols.sdf")
+output_sdf = os.path.join("tests", "test_data", "test_embedding_output.sdf")
+test_fragmentA = get_mol("nsp13", "x0034_0B", False, fragalysis_dir)
+test_fragmentB = get_mol("nsp13", "x0176_0B", False, fragalysis_dir)
 
 
 class TestEmbeddingFilter(unittest.TestCase):
@@ -75,6 +80,28 @@ class TestEmbeddingFilter(unittest.TestCase):
             1.0,
         )
         self.assertEqual(simsearch_case[0], True)
+
+    def test_main(self):
+        """Check that main executes correctly and produces output file"""
+        with patch(
+            "sys.argv",
+            [
+                "filter/embedding_filter.py",
+                "-i",
+                test_sdf,
+                "-o",
+                output_sdf,
+                "-a",
+                test_fragmentA,
+                "-b",
+                test_fragmentB,
+                "--n_conformations",
+                "55",
+            ],
+        ):
+            main()
+        self.assertTrue(os.path.exists(output_sdf))
+        os.remove(output_sdf)
 
 
 if __name__ == "__main__":
