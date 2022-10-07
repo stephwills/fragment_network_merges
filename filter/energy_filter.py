@@ -3,10 +3,10 @@ Used for filtering out poses with bad energies.
 """
 
 import argparse
-import time
+import os
+import sys
 from typing import Tuple
 
-from dm_job_utilities.dm_log import DmLog
 from filter.config_filter import config_filter
 from filter.generic_filter import Filter_generic
 from joblib import Parallel, delayed
@@ -14,8 +14,8 @@ from rdkit import Chem, RDLogger
 from rdkit.Chem import Mol
 from utils.filter_utils import calc_energy, calc_unconstrained_energy
 
-
 RDLogger.DisableLog("rdApp.*")
+
 
 class EnergyFilter(Filter_generic):
     def __init__(
@@ -69,10 +69,10 @@ class EnergyFilter(Filter_generic):
         """
         try:
             const_energy = calc_energy(merge)
-            print('constrained', const_energy)
+            print("constrained", const_energy)
             # energy of avg unconstrained conformation
             unconst_energy = calc_unconstrained_energy(merge, n_conf)
-            print('unconstrained', unconst_energy)
+            print("unconstrained", unconst_energy)
             # if the energy of the constrained conformation is less, then pass filter
             if (const_energy / unconst_energy) >= energy_threshold:
                 result = False
@@ -84,7 +84,7 @@ class EnergyFilter(Filter_generic):
             return False
 
     def filter_all(
-        self, cpus: int = config_filter.N_CPUS_FILTER_PAIR, **kwargs
+        self, cpus: int = config_filter.N_CPUS_FILTER_PAIR, *args
     ) -> Tuple[list, list]:
         """
         Runs the energy filter on all the SMILES in parallel.
@@ -96,17 +96,17 @@ class EnergyFilter(Filter_generic):
         :rtype: tuple
         """
         self.results = Parallel(n_jobs=cpus, backend="multiprocessing")(
-            delayed(self.filter_smi)(mol, **kwargs) for mol in self.mols
+            delayed(self.filter_smi)(mol, *args) for mol in self.mols
         )
         return self.results, self.mols
 
 
-def main():
+def parse_args(args):
     parser = argparse.ArgumentParser(
         epilog="""
-    python filter/energy_filter.py --input_file data/toFilter.sdf --output_file results.sdf
-    --energy_threshold 10 --n_conformations 50
-    """
+        python filter/energy_filter.py --input_file data/toFilter.sdf --output_file results.sdf
+        --energy_threshold 10 --n_conformations 50
+        """
     )
     # command line args definitions
     parser.add_argument(
@@ -120,6 +120,14 @@ def main():
         "--output_file",
         required=True,
         help="output sdf file to write filtered SMILES",
+    )
+    parser.add_argument(
+        "-c",
+        "--n_cpus",
+        required=False,
+        help="number of CPUs",
+        type=int,
+        default=os.cpu_count(),
     )
     parser.add_argument(
         "-e",
@@ -136,50 +144,15 @@ def main():
         help="number of unconstrained conformations to generate",
     )
 
-    args = parser.parse_args()
+    return parser.parse_args(args)
 
-    filter = EnergyFilter()
-    DmLog.emit_event("energy_filter: ", args)
 
-    start = time.time()
-    count = 0
-    hits = 0
-    errors = 0
-    # print(args.energy_threshold)
-    # print(type(args.energy_threshold))
-    with Chem.SDWriter(args.output_file) as w:
-        with Chem.SDMolSupplier(args.input_file) as suppl:
-            for mol in suppl:
-                if mol is None:
-                    continue
-                else:
-                    # print(mol)
-                    count += 1
-                    try:
+def main():
+    from filter.generic_squonk import Squonk_generic
 
-                        res = filter.filter_smi(
-                            mol,
-                            args.energy_threshold,
-                            args.n_conformations,
-                        )
-                        if res:
-                            hits += 1
-                            w.write(mol)
-                    except Exception as e:
-                        DmLog.emit_event(
-                            "Failed to process molecule", count, Chem.MolToSmiles(mol)
-                        )
-                        errors += 1
-
-    end = time.time()
-    duration_s = int(end - start)
-    if duration_s < 1:
-        duration_s = 1
-
-    DmLog.emit_event(
-        count, "inputs,", hits, "hits,", errors, "errors.", "Time (s):", duration_s
-    )
-    DmLog.emit_cost(count)
+    args = parse_args(sys.argv[1:])
+    job = Squonk_generic("EnergyFilter", args, args.input_file, args.output_file)
+    job.execute_job(args.n_cpus, args.energy_threshold, args.n_conformations)
 
 
 if __name__ == "__main__":

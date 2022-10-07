@@ -4,16 +4,14 @@ Used to filter out compounds that clash with the protein.
 
 import argparse
 import sys
-import time
+import os
 from typing import Tuple
 
 import numpy as np
-from dm_job_utilities.dm_log import DmLog
 from filter.config_filter import config_filter
 from filter.generic_filter import Filter_generic
 from joblib import Parallel, delayed
-from rdkit import Chem
-from rdkit.Chem import Mol, rdmolfiles, rdShapeHelpers
+from rdkit.Chem import Mol, rdShapeHelpers
 
 
 class OverlapFilter(Filter_generic):
@@ -108,7 +106,7 @@ class OverlapFilter(Filter_generic):
         return result
 
     def filter_all(
-        self, cpus: int = config_filter.N_CPUS_FILTER_PAIR, **kwargs
+        self, cpus: int = config_filter.N_CPUS_FILTER_PAIR, *args
     ) -> Tuple[list, list]:
         """
         Runs the overlap filter on all the SMILES in parallel.
@@ -120,7 +118,7 @@ class OverlapFilter(Filter_generic):
         :rtype: tuple
         """
         self.results = Parallel(n_jobs=cpus, backend="multiprocessing")(
-            delayed(self.filter_smi)(mol, self._proteinA, self._proteinB, **kwargs)
+            delayed(self.filter_smi)(mol, self._proteinA, self._proteinB, *args)
             for mol in self.mols
         )
         return self.results, self.mols
@@ -158,6 +156,14 @@ def parse_args(args):
     )
     parser.add_argument(
         "-c",
+        "--n_cpus",
+        required=False,
+        help="number of CPUs",
+        type=int,
+        default=os.cpu_count(),
+    )
+    parser.add_argument(
+        "-t",
         "--clash_threshold",
         type=float,
         default=0.15,
@@ -168,48 +174,20 @@ def parse_args(args):
 
 
 def main():
+    from filter.generic_squonk import Squonk_generic
+
     args = parse_args(sys.argv[1:])
-
-    filter = OverlapFilter()
-    DmLog.emit_event("overlap_filter: ", args)
-
-    start = time.time()
-    count = 0
-    hits = 0
-    errors = 0
-
-    proteinA = rdmolfiles.MolFromPDBFile(args.proteinA_file)
-    proteinB = rdmolfiles.MolFromPDBFile(args.proteinB_file)
-
-    with Chem.SDWriter(args.output_file) as w:
-        with Chem.SDMolSupplier(args.input_file) as suppl:
-            for mol in suppl:
-                if mol is None:
-                    continue
-                else:
-                    count += 1
-                    try:
-                        res = filter.filter_smi(
-                            mol, proteinA, proteinB, args.clash_threshold
-                        )
-                        if res:
-                            hits += 1
-                            w.write(mol)
-                    except Exception as e:
-                        DmLog.emit_event(
-                            "Failed to process molecule", count, Chem.MolToSmiles(mol)
-                        )
-                        errors += 1
-
-    end = time.time()
-    duration_s = int(end - start)
-    if duration_s < 1:
-        duration_s = 1
-
-    DmLog.emit_event(
-        count, "inputs,", hits, "hits,", errors, "errors.", "Time (s):", duration_s
+    job = Squonk_generic(
+        "OverlapFilter",
+        args,
+        args.input_file,
+        args.output_file,
+        None,
+        None,
+        args.proteinA_file,
+        args.proteinB_file
     )
-    DmLog.emit_cost(count)
+    job.execute_job(args.n_cpus, args.clash_threshold)
 
 
 if __name__ == "__main__":

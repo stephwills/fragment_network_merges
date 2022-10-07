@@ -40,9 +40,9 @@ class TestEnergyFilter(unittest.TestCase):
                 "-o",
                 output_sdf,
                 "-e",
-                "10",
+                "11",
                 "-n",
-                "50"
+                "55",
             ],
         ):
             main()

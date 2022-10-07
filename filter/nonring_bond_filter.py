@@ -1,19 +1,17 @@
 """
 For filtering molecules with many consecutive non-ring bonds atoms.
 """
-
 import argparse
+import os
 import sys
-import time
 from typing import Tuple
 
-from dm_job_utilities.dm_log import DmLog
 from filter.config_filter import config_filter
 from filter.generic_filter import Filter_generic
 from joblib import Parallel, delayed
 from rdkit import Chem, RDLogger
-from rdkit.Chem import AllChem, rdmolops, Mol
-from rdkit.Chem.rdMolDescriptors import CalcNumHeavyAtoms, CalcNumRings
+from rdkit.Chem import Mol, rdmolops
+from rdkit.Chem.rdMolDescriptors import CalcNumRings
 
 # uses code from
 # https://iwatobipen.wordpress.com/2020/01/23/cut-molecule-to-ring-and-linker-with-rdkit-rdkit-chemoinformatics-memo/
@@ -89,7 +87,7 @@ class NonringBondFilter(Filter_generic):
         Get the maximum path length within the substructure.
         """
         maxPath = 0
-        numAtoms = CalcNumHeavyAtoms(fragment)
+        numAtoms = fragment.GetNumHeavyAtoms()
         for i in range(numAtoms):  # look for paths up the length of number of atoms
             # get max consecutive path length in linker/sidechain
             paths = rdmolops.FindAllPathsOfLengthN(fragment, i, useBonds=True)
@@ -211,7 +209,7 @@ class NonringBondFilter(Filter_generic):
             return True
 
     def filter_all(
-        self, cpus: int = config_filter.N_CPUS_FILTER_PAIR
+        self, cpus: int = config_filter.N_CPUS_FILTER_PAIR, *args
     ) -> Tuple[list, None]:
         """
         Runs the nonring_bond_filter on all the SMILES in parallel.
@@ -223,7 +221,7 @@ class NonringBondFilter(Filter_generic):
         :rtype: tuple
         """
         self.results = Parallel(n_jobs=cpus, backend="multiprocessing")(
-            delayed(self.filter_smi)(smi) for smi in self.smis
+            delayed(self.filter_smi)(smi, *args) for smi in self.smis
         )
         return self.results, self.mols
 
@@ -252,6 +250,14 @@ def parse_args(args):
         help="output sdf file to write filtered SMILES",
     )
     parser.add_argument(
+        "-c",
+        "--n_cpus",
+        required=False,
+        help="number of CPUs",
+        type=int,
+        default=os.cpu_count(),
+    )
+    parser.add_argument(
         "-l",
         "--linker_path_threshold",
         default=8,
@@ -267,43 +273,13 @@ def parse_args(args):
 
 
 def main():
+    from filter.generic_squonk import Squonk_generic
+
     args = parse_args(sys.argv[1:])
-    filter = NonringBondFilter()
-    DmLog.emit_event("nonring_bond_filter: ", args)
-
-    start = time.time()
-    count = 0
-    hits = 0
-    errors = 0
-
-    with Chem.SDWriter(args.output_file) as w:
-        with Chem.SDMolSupplier(args.input_file) as suppl:
-            for mol in suppl:
-                if mol is None:
-                    continue
-            else:
-                count += 1
-                smi = Chem.MolToSmiles(mol)
-                try:
-                    res = filter.filter_smi(
-                        smi, args.linker_path_threshold, args.sidechain_path_threshold
-                    )
-                    if res:
-                        hits += 1
-                        w.write(mol)
-                except Exception as e:
-                    DmLog.emit_event("Failed to process molecule", count, smi)
-                    errors += 1
-
-    end = time.time()
-    duration_s = int(end - start)
-    if duration_s < 1:
-        duration_s = 1
-
-    DmLog.emit_event(
-        count, "inputs,", hits, "hits,", errors, "errors.", "Time (s):", duration_s
+    job = Squonk_generic("NonringBondFilter", args, args.input_file, args.output_file)
+    job.execute_job(
+        args.n_cpus, args.linker_path_threshold, args.sidechain_path_threshold
     )
-    DmLog.emit_cost(count)
 
 
 if __name__ == "__main__":

@@ -9,6 +9,7 @@ from filter.nonring_bond_filter import NonringBondFilter, main
 test_sdf = os.path.join('tests', 'test_data', 'nonring_bond_filter_mols.sdf')
 output_sdf = os.path.join("tests", "test_data", "test_nonring_bond_filter_output.sdf")
 
+
 class TestDescriptorFilter(unittest.TestCase):
     """Tests the DescriptorFilter class"""
 
@@ -43,6 +44,8 @@ class TestDescriptorFilter(unittest.TestCase):
                 test_sdf,
                 "-o",
                 output_sdf,
+                "-s",
+                "7"
             ],
         ):
             main()
