@@ -25,6 +25,8 @@ def get_parallel_client(threads_per_worker=None, n_workers=None, memory_limit=No
                 if mem.total is None:
                     raise ValueError("Error, memory was not determined")
                 memory_limit="%dGB"%( (0.9 *mem.total/n_workers) // 2 ** 30)
+        if threads_per_worker is None:
+            threads_per_worker = 1 
         dask.config.set({'temporary_directory': os.path.join(config.TMP_DIR, "dask")})
         if n_workers>1 or threads_per_worker>1:
             if config.DISABLE_DASHBOARD:
