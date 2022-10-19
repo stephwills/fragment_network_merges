@@ -114,8 +114,9 @@ def process_cxsmi_file(fname, compunds_db_fname, binaries_dir, n_lines_per_chunk
                 data = dd.read_csv(chunked_fname, sep=delimiter, usecols=[smi_colIdx,cid_colIdx],
                                    dtype={smi_colIdx:str, cid_colIdx:str})
             else:
-                data = dd.read_csv(chunked_fname, sep=delimiter, header=None, usecols=[smi_colIdx,1],
+                data = dd.read_csv(chunked_fname, sep=delimiter, header=None, usecols=[smi_colIdx,cid_colIdx],
                                    dtype={smi_colIdx:str, cid_colIdx:str})
+                data = data[[smi_colIdx,cid_colIdx]] #TODO: check if this line only for not has_header
 
             print("%s raw data read"%chunked_basename, flush=True)
 
