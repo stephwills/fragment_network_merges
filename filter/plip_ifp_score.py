@@ -2,9 +2,11 @@
 Used for filtering merges according to calculated descriptors.
 """
 
+import argparse
 import json
 import os
 import shutil
+import sys
 
 from filter.config_filter import config_filter
 from filter.generic_scoring import Score_generic
@@ -12,7 +14,6 @@ from joblib import Parallel, delayed
 from plip.structure.preparation import PDBComplex
 from pymol import cmd
 from utils.utils import load_json
-
 
 ALL_INTERACTIONS = [
     "hydrophobic_contacts",
@@ -177,7 +178,9 @@ class PlipIfpScore(Score_generic):
             with open(json_file, "w") as f:
                 json.dump(d, f)
 
-            self._copy_files(name, [json_file, fragmentA_complex_file, fragmentB_complex_file])
+            self._copy_files(
+                name, [json_file, fragmentA_complex_file, fragmentB_complex_file]
+            )
 
         return json_file
 
@@ -185,7 +188,7 @@ class PlipIfpScore(Score_generic):
         """
         Move the interaction and complex files to the output_dir
         """
-        output_subdir = os.path.join(self.out_pair_dir, name.replace('_', '-'))
+        output_subdir = os.path.join(self.out_pair_dir, name.replace("_", "-"))
         if not os.path.exists(output_subdir):
             os.mkdir(output_subdir)
 
@@ -255,8 +258,130 @@ class PlipIfpScore(Score_generic):
             self.move_apo_files()
 
         self.scores = Parallel(n_jobs=cpus, backend="multiprocessing")(
-            delayed(self.score_mol)(name, holo_file, apo_file, self.fragmentA, self.fragmentB)
-            for name, holo_file, apo_file in zip(self.names, self.holo_files, self.apo_files)
+            delayed(self.score_mol)(
+                name, holo_file, apo_file, self.fragmentA, self.fragmentB
+            )
+            for name, holo_file, apo_file in zip(
+                self.names, self.holo_files, self.apo_files
+            )
         )
 
         return self.scores
+
+    def filter_mol(
+        self,
+        name: str,
+        holo_file: str,
+        apo_file: str,
+        fragmentA: str,
+        fragmentB: str,
+        score_threshold: float,
+    ) -> float:
+        """
+        Filter using the scoring function.
+        """
+        interaction_file = self.write_interaction_file(
+            name, fragmentA, fragmentB, holo_file, apo_file
+        )
+        score = self.ifp_scorer(interaction_file)
+        if score >= score_threshold:
+            result = True
+        else:
+            result = False
+        return result
+
+    def filter_all(self, cpus: int = config_filter.N_CPUS_FILTER_PAIR, *args):
+        """
+        Runs the PLIP IFP score filter on all molecules in parallel.
+        """
+        if not self.apo_files:
+            # if no apo files, remove ligand from holo files to create apo files
+            print("Removing ligands")
+            self.get_apo_files()
+            # self.move_apo_files()
+
+        results = Parallel(n_jobs=cpus, backend="multiprocessing")(
+            delayed(self.filter_mol)(
+                name, holo_file, apo_file, self.fragmentA, self.fragmentB, *args
+            )
+            for name, holo_file, apo_file in zip(
+                self.names, self.holo_files, self.apo_files
+            )
+        )
+
+        return results, self.mols
+
+
+def parse_args(args):
+    """
+    Parse command line arguments
+    """
+    parser = argparse.ArgumentParser(
+        epilog="""
+    python filter/plip_ifp_score.py --input_file data/toFilter.sdf --output_file results.sdf --score_threshold 0.6
+    """
+    )
+    # command line args definitions
+    parser.add_argument(
+        "-i",
+        "--input_file",
+        required=True,
+        help="input sdf file containing molecules to filter",
+    )
+    parser.add_argument(
+        "-o",
+        "--output_file",
+        required=True,
+        help="output sdf file to write filtered SMILES",
+    )
+    parser.add_argument(
+        "-a", "--fragmentA_file", required=True, help="fragment A mol file"
+    )
+    parser.add_argument(
+        "-b", "--fragmentB_file", required=True, help="fragment B mol file"
+    )
+    parser.add_argument(
+        "-c",
+        "--n_cpus",
+        required=False,
+        help="number of CPUs",
+        type=int,
+        default=os.cpu_count(),
+    )
+    parser.add_argument(
+        "-t",
+        "--score_threshold",
+        required=False,
+        help="mean proportion of interactions that need to be maintained to pass the filter",
+        type=float,
+        default=0.5,
+    )
+    parser.add_argument(
+        "-W", "--working_dir", required=True, help="where to save intermediate files"
+    )
+    parser.add_argument(
+        "-O", "--output_dir", required=True, help="where to save the final files"
+    )
+    return parser.parse_args(args)
+
+
+def main():
+    from filter.generic_squonk import Squonk_generic
+
+    args = parse_args(sys.argv[1:])
+    job = Squonk_generic(
+        "PlipIfpScore",
+        args,
+        args.input_file,
+        args.output_file,
+        args.fragmentA_file,
+        args.fragmentB_file,
+        work_pair_dir=args.working_dir,
+        out_pair_dir=args.output_dir,
+        score=True,
+    )
+    job.execute_job(args.n_cpus, args.score_threshold)
+
+
+if __name__ == "__main__":
+    main()
