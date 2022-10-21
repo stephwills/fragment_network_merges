@@ -5,10 +5,9 @@
 import argparse
 import gzip
 import os
-import time
+import sys
 
 import rdkit
-from dm_job_utilities.dm_log import DmLog
 from filter.config_filter import config_filter
 from filter.generic_scoring import Score_generic
 from joblib import Parallel, delayed
@@ -40,6 +39,7 @@ keep = (
 )
 
 #################################################
+
 
 def get_FeatureMapScore(small_m, large_m, score_mode=FeatMaps.FeatMapScoreMode.Best):
     featLists = []
@@ -173,7 +173,9 @@ class SuCOSScore(Score_generic):
         )
         self.scores = None
 
-    def score_mol(self, mol_file: str, fragmentA_file: str, fragmentB_file: str) -> float:
+    def score_mol(
+        self, mol_file: str, fragmentA_file: str, fragmentB_file: str
+    ) -> float:
         """
         Calculates the average SuCOS score
 
@@ -200,12 +202,45 @@ class SuCOSScore(Score_generic):
 
         return self.scores
 
+    def filter_mol(
+        self,
+        mol_file: str,
+        fragmentA_file: str,
+        fragmentB_file: str,
+        score_threshold: float,
+    ) -> float:
+        """
+        Filters using the average SuCOS score
+        """
+        scoreA = calc_SuCOS(fragmentA_file, mol_file, FeatMaps.FeatMapScoreMode.Best)
+        scoreB = calc_SuCOS(fragmentB_file, mol_file, FeatMaps.FeatMapScoreMode.Best)
+        avg = (scoreA * scoreB) ** 0.5
 
-def main():
+        if avg >= score_threshold:
+            result = True
+        else:
+            result = False
+        return result
+
+    def filter_all(self, cpus: int = config_filter.N_CPUS_FILTER_PAIR, *args):
+        """
+        Runs the SuCOS score filter on all molecules in parallel.
+        """
+        results = Parallel(n_jobs=cpus, backend="multiprocessing")(
+            delayed(self.filter_mol)(mol_file, self.fragmentA, self.fragmentB, *args)
+            for mol_file in self.mol_files
+        )
+
+        return results, self.mols
+
+
+def parse_args(args):
+    """
+    Parse command line arguments
+    """
     parser = argparse.ArgumentParser(
         epilog="""
-    python filter/sucos_score.py --input_file data/toFilter.sdf --output_file results.sdf
-    --fragmentA_file nsp13-x0176_0B.mol --fragmentB_file nsp13-x0034_0B.mol --score_threshold 0.5
+    python filter/sucos_score.py --input_file data/toFilter.sdf --output_file results.sdf --score_threshold 0.6
     """
     )
     # command line args definitions
@@ -228,61 +263,38 @@ def main():
         "-b", "--fragmentB_file", required=True, help="fragment B mol file"
     )
     parser.add_argument(
+        "-c",
+        "--n_cpus",
+        required=False,
+        help="number of CPUs",
+        type=int,
+        default=os.cpu_count(),
+    )
+    parser.add_argument(
         "-t",
         "--score_threshold",
+        required=False,
+        help="avg SuCOS score to pass threshold",
         type=float,
-        default=None,
-        help="minimum SuCOS score required for molecules to pass filter",
+        default=0.5,
     )
+    return parser.parse_args(args)
 
-    args = parser.parse_args()
 
-    scorer = SuCOSScore()
-    DmLog.emit_event("sucos_filter: ", args)
+def main():
+    from filter.generic_squonk import Squonk_generic
 
-    start = time.time()
-    count = 0
-    hits = 0
-    errors = 0
-
-    with Chem.SDWriter(args.output_file) as w:
-        with Chem.SDMolSupplier(args.input_file) as suppl:
-            for mol in suppl:
-                if mol is None:
-                    continue
-                else:
-                    count += 1
-                    try:
-                        minimised_mol_file = mol.GetProp("minimised_mol_file")
-                        score = scorer.score_mol(
-                            minimised_mol_file,
-                            args.fragmentA_file,
-                            args.fragmentB_file,
-                        )
-                        if args.score_threshold:
-                            if score >= args.score_threshold:
-                                hits += 1
-                                mol.SetProp("SuCOS score", score)
-                                w.write(mol)
-                        else:
-                            hits += 1
-                            mol.SetProp("SuCOS score", score)
-                            w.write(mol)
-                    except Exception as e:
-                        DmLog.emit_event(
-                            "Failed to process molecule", count, Chem.MolToSmiles(mol)
-                        )
-                        errors += 1
-
-    end = time.time()
-    duration_s = int(end - start)
-    if duration_s < 1:
-        duration_s = 1
-
-    DmLog.emit_event(
-        count, "inputs,", hits, "hits,", errors, "errors.", "Time (s):", duration_s
+    args = parse_args(sys.argv[1:])
+    job = Squonk_generic(
+        "SuCOSScore",
+        args,
+        args.input_file,
+        args.output_file,
+        args.fragmentA_file,
+        args.fragmentB_file,
+        score=True,
     )
-    DmLog.emit_cost(count)
+    job.execute_job(args.n_cpus, args.score_threshold)
 
 
 if __name__ == "__main__":

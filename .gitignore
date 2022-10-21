@@ -140,10 +140,10 @@ tests/test_working/*
 test.pdb
 notebooks/
 filter/place_simsearch.py
-merge/run_focused_query.py
+merge/focused_query.py
 *docking_score.py
 filter/*_ss.py
 tests/*_ss.py
-analysis/
+archive/analysis/
 data_manager/
-
+archive/

@@ -1,12 +1,16 @@
 """Extra filters"""
 
-from rdkit import Chem
+import os
+from rdkit import Chem, RDLogger
 from rdkit.Chem.Scaffolds import MurckoScaffold
-from rdkit.Chem.rdMolDescriptors import CalcNumHeavyAtoms, CalcNumRings
+from rdkit.Chem.rdMolDescriptors import CalcNumRings
 from rdkit.Chem import rdmolops, AllChem
-
+from filter.config_filter import config_filter
+from joblib import Parallel, delayed
+from tqdm import tqdm
 
 # code from https://iwatobipen.wordpress.com/2020/01/23/cut-molecule-to-ring-and-linker-with-rdkit-rdkit-chemoinformatics-memo/
+RDLogger.DisableLog("rdApp.*")
 
 
 def is_in_samering(idx1, idx2, bond_rings):
@@ -59,22 +63,21 @@ def get_fragments(mol, bonds):
     sidechains = []
 
     for fragment in fragments:
-        print(fragments)
+        # print(fragments)
         numRings = CalcNumRings(fragment)
         if numRings == 0:
             smiles = Chem.MolToSmiles(fragment)
-            print(smiles)
+            # print(smiles)
             if smiles.count('*') == 1:
                 sidechains.append(fragment)
             else:
                 linkers.append(fragment)
 
-
     return linkers, sidechains
 
 def max_path(fragment):
     maxPath = 0
-    numAtoms = CalcNumHeavyAtoms(fragment)
+    numAtoms = fragment.GetNumHeavyAtoms()
     for i in range(numAtoms):  # look for paths up the length of number of atoms
         # get max consecutive path length in linker
         paths = rdmolops.FindAllPathsOfLengthN(fragment, i, useBonds=True)
@@ -84,7 +87,11 @@ def max_path(fragment):
     return maxPath
 
 
-def getMaxPath(mol, linkerPathThreshold, sidechainPathThreshold, returnMaxPath=False, useScaffold=True):
+def getMaxPath(mol,
+               linkerPathThreshold=config_filter.LINKER_PATH_THRESHOLD,
+               sidechainPathThreshold=config_filter.SIDECHAIN_PATH_THRESHOLD,
+               returnMaxPath=False,
+               useScaffold=False):
     try:
         bonds = getLinkerbond(mol, useScaffold)  # get the linker bonds for the molecule (join ring to linker)
         if len(bonds) == 0:
@@ -100,7 +107,7 @@ def getMaxPath(mol, linkerPathThreshold, sidechainPathThreshold, returnMaxPath=F
 
             if len(linkers) > 0:
                 for linker in linkers:
-                    numLinkerAtoms = CalcNumHeavyAtoms(linker)
+                    numLinkerAtoms = linker.GetNumHeavyAtoms()
                     for i in range(numLinkerAtoms):  # look for paths up the length of number of atoms
                         # get max consecutive path length in linker
                         linkerPaths = rdmolops.FindAllPathsOfLengthN(linker, i, useBonds=True)
@@ -109,14 +116,14 @@ def getMaxPath(mol, linkerPathThreshold, sidechainPathThreshold, returnMaxPath=F
 
             if len(sidechains) > 0:
                 for sidechain in sidechains:
-                    numSidechainAtoms = CalcNumHeavyAtoms(sidechain)
+                    numSidechainAtoms = sidechain.GetNumHeavyAtoms()
                     for i in range(numSidechainAtoms):  # look for paths up the length of number of atoms
                         # get max consecutive path length in sidechain
                         sidechainPaths = rdmolops.FindAllPathsOfLengthN(sidechain, i, useBonds=True)
                         if len(sidechainPaths) > 0 and i > maxSidechainPath:
                             maxSidechainPath = i
 
-            if maxLinkerPath <= linkerPathThreshold and maxSidechainPath <= sidechainPathThreshold:
+            if maxLinkerPath < linkerPathThreshold and maxSidechainPath < sidechainPathThreshold:
                 if returnMaxPath:
                     return True, maxLinkerPath, maxSidechainPath
                 else:
@@ -160,7 +167,13 @@ def calc_unconstrained_energy(
     return avg
 
 
-def energy_filter(mol, n_conf, energy_threshold):
+def get_energy_ratio(mol, n_conf, energy_threshold=config_filter.ENERGY_THRESHOLD):
+    const_energy = calc_energy(mol)
+    unconst_energy = calc_unconstrained_energy(mol, n_conf)
+    return const_energy, unconst_energy, (const_energy / unconst_energy)
+
+
+def energy_filter(mol, n_conf, energy_threshold=config_filter.ENERGY_THRESHOLD):
     const_energy = calc_energy(mol)
     unconst_energy = calc_unconstrained_energy(mol, n_conf)
 
@@ -171,22 +184,64 @@ def energy_filter(mol, n_conf, energy_threshold):
         return True
 
 
-def apply_extra_filters(names, smiles, pairs, synthons):
-    mols = [Chem.MolFromSmiles(smi) for smi in smiles]
+def extra_filters(mol):
+    res1 = getMaxPath(mol, useScaffold=False)
+    if res1:
+        try:
+            res2 = energy_filter(mol, 50, 7)
+        except:
+            return False
+        if res2:
+            return True
+        else:
+            return False
+    else:
+        return False
+
+
+def apply_maxpath_filter(smiles):
+    mols = [Chem.MolFromSmiles(s) for s in smiles]
+    results = Parallel(n_jobs=os.cpu_count(), backend='multiprocessing')(
+        delayed(getMaxPath)(mol, useScaffold=False) for mol in tqdm(mols))
+    return results
+
+
+def apply_extra_filters(names, smiles, pairs, synthons, ifp_scores, sucos_scores, mol_files, sim_search=False):
+    n_original = len(smiles)
+    mols = [Chem.rdmolfiles.MolFromMolFile(i) for i in mol_files]
 
     filt_names = []
     filt_smiles = []
     filt_pairs = []
-    filt_synthons = []
+    if not sim_search:
+        filt_synthons = []
+    filt_ifp_scores = []
+    filt_sucos_scores = []
 
-    for name, mol, smi, pair, synthon in zip(names, mols, smiles, pairs, synthons):
-        res1 = getMaxPath(mol, 8, 6)
-        if res1:
-            res2 = energy_filter(mol, 50, 7)
-            if res2:
+    results = Parallel(n_jobs=os.cpu_count(), backend='multiprocessing')(delayed(extra_filters)(mol) for mol in tqdm(mols))
+    if not sim_search:
+        for name, smi, pair, synthon, ifp_score, sucos_score, res in zip(names, smiles, pairs, synthons, ifp_scores, sucos_scores, results):
+            if res:
                 filt_names.append(name)
                 filt_smiles.append(smi)
                 filt_pairs.append(pair)
                 filt_synthons.append(synthon)
+                filt_ifp_scores.append(ifp_score)
+                filt_sucos_scores.append(sucos_score)
+        n_filtered = len(filt_smiles)
+        print(f"{n_filtered}/{n_original} smiles remaining")
+        return filt_names, filt_smiles, filt_pairs, filt_synthons, filt_ifp_scores, filt_sucos_scores
 
-    return filt_names, filt_smiles, filt_pairs, filt_synthons
+    else:
+        for name, smi, pair, ifp_score, sucos_score, res in zip(names, smiles, pairs, ifp_scores, sucos_scores, results):
+            if res:
+                filt_names.append(name)
+                filt_smiles.append(smi)
+                filt_pairs.append(pair)
+                filt_ifp_scores.append(ifp_score)
+                filt_sucos_scores.append(sucos_score)
+
+        n_filtered = len(filt_smiles)
+
+        print(f"{n_filtered}/{n_original} smiles remaining")
+        return filt_names, filt_smiles, filt_pairs, filt_ifp_scores, filt_sucos_scores

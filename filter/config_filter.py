@@ -26,7 +26,7 @@ class Config_filter(metaclass=Singleton):
             "ElaboratabilityScore": "filter.elaboratability_score",
             "EmbeddingFilterSS": "filter.embedding_filter_ss",  # for placing similarity search stuff
             "EnergyFilter": "filter.energy_filter",
-            "NonringBondFilter": "nonring_bond_filter"
+            "NonringBondFilter": "filter.nonring_bond_filter"
         },
         # PARAMETERS INVOLVED IN INDIVIDUAL FILTERS
         ROTAT_THRESHOLD=10,  # descriptor_filter.py; max number rotatable bonds
@@ -43,6 +43,7 @@ class Config_filter(metaclass=Singleton):
         SIDECHAIN_PATH_THRESHOLD=6,  # nonring_bond_filter.py; max length of sidechains
         N_ELAB_DISTS=10,  # elaboratability_score.py; number of dists to closest atoms to calculate
         MIN_ELAB_ANGLE=10,  # elaboratability_score.py; angle between dist vectors
+        PLIP_SCORE_THRESHOLD=0.5,  # plip_ifp_score.py; proportion of bonds maintained
     )
 
     @classmethod

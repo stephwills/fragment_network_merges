@@ -26,8 +26,8 @@ class OverlapFilter(Filter_generic):
         merge=None,
         mols=None,
         names=None,
-        pair_working_dir=None,
-        pair_output_dir=None,
+        work_pair_dir=None,
+        out_pair_dir=None,
     ):
         super().__init__(
             smis,
@@ -39,8 +39,8 @@ class OverlapFilter(Filter_generic):
             merge,
             mols,
             names,
-            pair_working_dir,
-            pair_output_dir,
+            work_pair_dir,
+            out_pair_dir,
         )
         self.results = None
 

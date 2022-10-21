@@ -2,8 +2,9 @@
 
 import os
 import unittest
+from unittest.mock import patch
 
-from filter.sucos_score import SuCOSScore
+from filter.sucos_score import SuCOSScore, main
 from utils.utils import get_mol
 
 
@@ -34,6 +35,38 @@ class TestSuCOSScore(unittest.TestCase):
         actual_scores = [0.53, 0.71, 0.67]
         rounded_scores = [round(s, 2) for s in scores]
         self.assertEqual(actual_scores, rounded_scores)
+
+    def test_main(self):
+        """Check that main executes correctly and produces output file"""
+        input_sdf = os.path.join(
+            "tests", "test_data", "for_scoring", "input_scoring.sdf"
+        )
+        output_sdf = os.path.join(
+            "tests", "test_data", "for_scoring", "output_scoring.sdf"
+        )
+        frag_dir = os.path.join("tests", "test_Fragalysis")
+        fragmentA = get_mol("nsp13", "x0034_0B", False, frag_dir)
+        fragmentB = get_mol("nsp13", "x0212_0B", False, frag_dir)
+        dir = os.path.join("tests", "test_data", "for_scoring")
+        with patch(
+            "sys.argv",
+            [
+                "filter/sucos_score.py",
+                "-i",
+                input_sdf,
+                "-o",
+                output_sdf,
+                "-a",
+                fragmentA,
+                "-b",
+                fragmentB,
+                "-t",
+                "0.5"
+            ],
+        ):
+            main()
+        self.assertTrue(os.path.exists(output_sdf))
+        os.remove(output_sdf)
 
 
 if __name__ == "__main__":
