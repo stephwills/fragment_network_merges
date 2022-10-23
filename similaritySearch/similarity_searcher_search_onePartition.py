@@ -216,7 +216,7 @@ def search_fps_matrix(query_fps, database_dir, n_hits_per_smi=30, query_smi_list
 
         if metric == "Tanimoto":
             kwargs["metric_fun"] = jaccard_numba
-        if metric == "TanimotoW":
+        elif metric == "TanimotoW":
             bit_log_weights = 1./get_db_fp_weights()
             @numba.jit(**config.NUMBA_kwARGS)
             def _jaccard_weighted_numba(query_fp, db_fp):
