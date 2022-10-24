@@ -146,7 +146,7 @@ filter/*_ss.py
 tests/*_ss.py
 archive/analysis/
 data_manager/
-archive/
+archive/*
 utils/misc*
 utils/*analysis*
 filter/elaboratability_evaluation.py
