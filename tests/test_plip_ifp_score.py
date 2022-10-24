@@ -1,6 +1,7 @@
 """Tests the interaction fingeprint scoring script"""
 
 import os
+import shutil
 import unittest
 from unittest.mock import patch
 
@@ -10,9 +11,10 @@ from utils.utils import get_mol
 
 def delete_files(dir):
     for intermed_file in os.listdir(dir):
+        if os.path.isdir(os.path.join(os.path.join(dir, intermed_file))):
+            shutil.rmtree(os.path.join(os.path.join(dir, intermed_file)))
         for file_sub in ["interactions", "fA", "fB"]:
             if file_sub in intermed_file:
-                # print(os.path.join(output_dir, intermed_file))
                 if os.path.exists(os.path.join(dir, intermed_file)):
                     os.remove(os.path.join(dir, intermed_file))
 
