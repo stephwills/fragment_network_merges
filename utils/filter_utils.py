@@ -102,6 +102,26 @@ def get_mcs(full_mol: Mol, fragment: Mol) -> Mol:
         mcs_mol.SetProp("partiallySanitized", "True")
     return mcs_mol
 
+def sanitize(mol):
+    """
+    Partially sanitizes molecule if sanitization is not possible.
+    """
+    try:
+        Chem.SanitizeMol(mol)
+    except:
+        mol.UpdatePropertyCache(strict=False)
+        Chem.SanitizeMol(
+            mol,
+            Chem.SanitizeFlags.SANITIZE_FINDRADICALS
+            | Chem.SanitizeFlags.SANITIZE_KEKULIZE
+            | Chem.SanitizeFlags.SANITIZE_SETAROMATICITY
+            | Chem.SanitizeFlags.SANITIZE_SETCONJUGATION
+            | Chem.SanitizeFlags.SANITIZE_SETHYBRIDIZATION
+            | Chem.SanitizeFlags.SANITIZE_SYMMRINGS,
+            catchErrors=True,
+        )
+        mol.SetProp("partiallySanitized", "True")
+
 
 def remove_ligand(pdb_file: str) -> str:
     """
