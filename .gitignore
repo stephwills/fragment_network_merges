@@ -149,3 +149,5 @@ data_manager/
 archive/
 utils/misc*
 utils/*analysis*
+filter/elaboratability_evaluation.py
+
