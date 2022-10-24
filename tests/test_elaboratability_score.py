@@ -8,6 +8,13 @@ from utils.utils import get_mol
 from rdkit import Chem
 
 
+def delete_files(dir):
+    for intermed_file in os.listdir(dir):
+        if 'elab' in intermed_file:
+            if os.path.exists(os.path.join(dir, intermed_file)):
+                os.remove(os.path.join(dir, intermed_file))
+
+
 class TestElaboratabilityScore(unittest.TestCase):
     """Tests the PLIP IFP scoring function"""
 
@@ -38,6 +45,7 @@ class TestElaboratabilityScore(unittest.TestCase):
 
         scores = scorer.score_all()
         self.assertEqual(scores, [3,2,3])
+        delete_files(mol_dir)
 
 
 if __name__ == "__main__":
