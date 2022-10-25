@@ -1,27 +1,23 @@
 """Tests the expansion filter script"""
 
+import os
 import unittest
+from unittest.mock import patch
 
-from filter.expansion_filter import ExpansionFilter
+from filter.expansion_filter import ExpansionFilter, main
 from merge.preprocessing import get_mol
 
+fragalysis_dir = "tests/test_Fragalysis"
 fragmentA = get_mol("nsp13", "x0276_0B", True)
 fragmentB = get_mol("nsp13", "x0034_0B", True)
+test_sdf = os.path.join("tests", "test_data", "embedding_filter_mols.sdf")
+output_sdf = os.path.join("tests", "test_data", "test_embedding_output.sdf")
+test_fragmentA = get_mol("nsp13", "x0034_0B", False, fragalysis_dir)
+test_fragmentB = get_mol("nsp13", "x0176_0B", False, fragalysis_dir)
 
 
 class TestExpansionFilter(unittest.TestCase):
     """Tests the expansion filter function"""
-
-    # def test_expansion_filter_failing(self):
-    #     """
-    #     Tests the filter fails where most of the synthon is also in fragment A
-    #     (so looks like an expansion).
-    #     """
-    #     smi = "CC(C)NCC(C)(C)CN(C)C(=O)c1ccccc1F"
-    #     synthon = "Fc1ccccc1[Xe]"
-    #     filter = ExpansionFilter()
-    #     failing_case = filter.filter_smi(smi, synthon, fragmentA, fragmentB, 3)
-    #     self.assertEqual(failing_case, False)
 
     def test_expansion_filter_passing(self):
         """Tests the filter passes molecules correctly"""
@@ -62,6 +58,28 @@ class TestExpansionFilter(unittest.TestCase):
         ]
         test_results = [True] * 8
         self.assertEqual(results, test_results)
+
+    def test_main(self):
+        """Check that main executes correctly and produces output file"""
+        with patch(
+            "sys.argv",
+            [
+                "filter/expansion_filter.py",
+                "-i",
+                test_sdf,
+                "-o",
+                output_sdf,
+                "-A",
+                test_fragmentA,
+                "-B",
+                test_fragmentB,
+                "--min_atoms",
+                "2",
+            ],
+        ):
+            main()
+        self.assertTrue(os.path.exists(output_sdf))
+        os.remove(output_sdf)
 
 
 if __name__ == "__main__":

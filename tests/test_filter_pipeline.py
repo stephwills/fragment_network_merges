@@ -260,6 +260,50 @@ class TestFilterPipeline(unittest.TestCase):
 
         remove_files()
 
+    def test_updated_pipeline(self):
+        """
+        Tests a basic filter pipeline and the results - smiles undergo the descriptor, embedding and overlap filters.
+        Fragmenstein will fail - need to find a molecule that will pass...
+        """
+        merge = "x0991-0A-x0072-0A"
+        data = load_json(os.path.join("tests", "test_data", "x0991_0A_x0072_0A.json"))
+        smiles = data["smiles"][6:8]
+        synthons = data["synthons"][6:8]
+        fragmentA = get_mol("Mpro", "x0991_0A", False)
+        fragmentB = get_mol("Mpro", "x0072_0A", False)
+        proteinA = get_protein("Mpro", "x0991_0A", False)
+        proteinB = get_protein("Mpro", "x0072_0A", False)
+        target = "Mpro"
+        filter_steps = ["FragmensteinFilter", "EnergyFilter"]
+        score_steps = ["PlipIfpScore", "SuCOSScore", "ElaboratabilityScore"]
+        output_dir = "tests/test_output"
+        working_dir = "tests/test_working"
+
+        merge_dir = create_directories("Mpro", "x0991-0A-x0072-0A", working_dir, output_dir)
+        # execute the pipeline
+        pipeline = FilterPipeline(
+            merge,
+            smiles,
+            synthons,
+            fragmentA,
+            fragmentB,
+            proteinA,
+            proteinB,
+            filter_steps,
+            score_steps,
+            target,
+            merge_dir,
+            working_dir,
+            output_dir,
+        )
+        pipeline.execute_pipeline()
+        results, failures = pipeline.return_results()
+
+        self.assertIsInstance(results, dict)
+        self.assertIsInstance(failures, dict)
+
+        remove_files()
+
 
 if __name__ == "__main__":
     unittest.main()

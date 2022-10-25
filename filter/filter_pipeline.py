@@ -52,7 +52,7 @@ class FilterPipeline:
         self,
         merge: str,
         smis: list,
-        synthons: list,
+        synthons,  # None if sim search; list if frag net
         fragmentA: str,
         fragmentB: str,
         proteinA: str,
@@ -87,8 +87,8 @@ class FilterPipeline:
         self.target = target
 
         # file saving
-        self.pair_working_dir = merge_dir
-        self.pair_output_dir = os.path.join(output_dir, target, merge)
+        self.pair_working_dir = merge_dir  # the pair dir within the working directory
+        self.pair_output_dir = os.path.join(output_dir, target, merge)  # the pair dir within the output directory
         self.failed_fpath = os.path.join(
             self.pair_working_dir, f"{self.merge}_failures.json"
         )
@@ -121,7 +121,8 @@ class FilterPipeline:
                 if name in failed_merges:
                     self.smis.pop(i)
                     self.names.pop(i)
-                    self.synthons.pop(i)
+                    if self.synthons:
+                        self.synthons.pop(i)
 
             print(
                 f"{len(failed_merges)} merges have already been filtered. {len(self.smis)} merges remaining."
@@ -142,19 +143,28 @@ class FilterPipeline:
         for i, res in reversed(list(enumerate(self.results))):
             if not res:  # if merge failed the filter, then remove from data
                 smi = self.smis[i]
-                synthon = self.synthons[i]
+                if self.synthons:
+                    synthon = self.synthons[i]
                 name = self.names[i]
 
                 # record the failed smile in self.failures dict
-                inner_dict = {
-                    "pair": self.merge,
-                    "smiles": smi,
-                    "synthon": synthon,
-                    "failed_filter": filter_name,
-                }
+                if self.synthons:
+                    inner_dict = {
+                        "pair": self.merge,
+                        "smiles": smi,
+                        "synthon": synthon,
+                        "failed_filter": filter_name,
+                    }
+                else:
+                    inner_dict = {
+                        "pair": self.merge,
+                        "smiles": smi,
+                        "failed_filter": filter_name,
+                    }
                 self.failures[name] = inner_dict
                 self.smis.pop(i)
-                self.synthons.pop(i)
+                if self.synthons:
+                    self.synthons.pop(i)
                 self.names.pop(i)
                 if self.mols:  # if mols have been generated, remove failed merge
                     self.mols.pop(i)
@@ -223,7 +233,8 @@ class FilterPipeline:
             )  # initialise the filter
             self.results, self.mols = filter.filter_all()  # run the filter
             # if the filter creates placed mol/pdb files, retrieve them (will stay as None if not)
-            self.mol_files, self.holo_files, self.apo_files = filter.get_placed_files()
+            if filter.get_placed_files()[0]:
+                self.mol_files, self.holo_files, self.apo_files = filter.get_placed_files()
             end = time.time()
             self._remove_failed(
                 step
@@ -294,21 +305,46 @@ class FilterPipeline:
         """
         if len(self.score_dict) > 0:
             results_dict = {}
-            for i, (name, smi, synthon) in enumerate(
-                zip(self.names, self.smis, self.synthons)
-            ):
-                inner_dict = {"pair": self.merge, "smiles": smi, "synthon": synthon}
-                for score in self.score_dict:
-                    inner_dict[score] = self.score_dict[score][i]
-                results_dict[name] = inner_dict
+            if self.synthons:
+                for i, (name, smi, synthon) in enumerate(
+                    zip(self.names, self.smis, self.synthons)
+                ):
+                    inner_dict = {"pair": self.merge, "smiles": smi, "synthon": synthon}
+                    for score in self.score_dict:
+                        inner_dict[score] = self.score_dict[score][i]
+                    results_dict[name] = inner_dict
+
+            else:
+                for i, (name, smi) in enumerate(
+                        zip(self.names, self.smis)
+                ):
+                    inner_dict = {"pair": self.merge, "smiles": smi}
+                    for score in self.score_dict:
+                        inner_dict[score] = self.score_dict[score][i]
+                    results_dict[name] = inner_dict
 
         else:
             results_dict = {}
-            for i, (name, smi, synthon) in enumerate(
-                zip(self.names, self.smis, self.synthons)
-            ):
-                inner_dict = {"pair": self.merge, "smiles": smi, "synthon": synthon}
-                results_dict[name] = inner_dict
+            if self.synthons:
+                for i, (name, smi, synthon) in enumerate(
+                    zip(self.names, self.smis, self.synthons)
+                ):
+                    inner_dict = {"pair": self.merge, "smiles": smi, "synthon": synthon}
+                    results_dict[name] = inner_dict
+
+            else:
+                for i, (name, smi) in enumerate(
+                        zip(self.names, self.smis)
+                ):
+                    inner_dict = {"pair": self.merge, "smiles": smi}
+                    results_dict[name] = inner_dict
+
+        # save in json files
+        filtered_fname = self.merge + "_filtered.json"
+        filtered_fpath = os.path.join(self.pair_output_dir, filtered_fname)
+
+        with open(filtered_fpath, "w") as f:
+            json.dump(results_dict, f)
 
         return results_dict, self.failures
 
@@ -338,6 +374,9 @@ def parse_args(args):
     parser.add_argument(
         "-w", "--working_dir", help="the directory to write the intermediate files to"
     )
+    parser.add_argument(
+        "-s", "--sim_search", help="whether the data is similarity search data or not", action='store_true'
+    )
     return parser.parse_args(args)
 
 
@@ -350,8 +389,12 @@ def main():
     merge_dir = create_directories(args.target, merge, args.working_dir, args.output_dir)
 
     # open json file containing merges
-    merges_dict = load_json(args.merge_file)
-    synthons, smiles = get_merges(merges_dict)
+    if not args.sim_search:
+        merges_dict = load_json(args.merge_file)
+        synthons, smiles = get_merges(merges_dict)
+    else:
+        smiles = load_json(args.merge_file)
+        synthons = None
     print("Number of smiles: %d" % len(smiles))
 
     # load fragments and proteins
@@ -374,7 +417,7 @@ def main():
     pipeline = FilterPipeline(
         merge,
         smiles,
-        synthons,
+        synthons,  # None if sim search data
         fragmentA,
         fragmentB,
         proteinA,
@@ -395,8 +438,9 @@ def main():
     filtered_fname = merge + "_filtered.json"
     filtered_fpath = os.path.join(args.output_dir, args.target, merge, filtered_fname)
 
-    with open(filtered_fpath, "w") as f:
-        json.dump(results, f)
+    if not os.path.exists(filtered_fpath):
+        with open(filtered_fpath, "w") as f:
+            json.dump(results, f)
 
     shutil.rmtree(merge_dir)
 
