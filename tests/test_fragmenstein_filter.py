@@ -3,8 +3,9 @@
 import os
 import shutil
 import unittest
+from unittest.mock import patch
 
-from filter.fragmenstein_filter import FragmensteinFilter
+from filter.fragmenstein_filter import FragmensteinFilter, main
 from utils.utils import get_mol, get_protein
 
 
@@ -49,6 +50,47 @@ class TestFragmensteinFilter(unittest.TestCase):
         )
         res = filter.filter_all()
         self.assertEqual(res[0][0], False)
+        remove_files(working_dir)
+        remove_files(output_dir)
+
+    def test_main(self):
+        frag_dir = os.path.join("tests", "test_Fragalysis")
+        fragmentA_path = get_mol("Mpro", "x0107_0A", False, frag_dir)
+        fragmentB_path = get_mol("Mpro", "x0678_0A", False, frag_dir)
+        proteinA_path = get_protein("Mpro", "x0107_0A", False, frag_dir)
+        proteinB_path = get_protein("Mpro", "x0678_0A", False, frag_dir)
+        working_dir = "tests/test_working/"
+        output_dir = "tests/test_output/"
+        test_sdf = os.path.join("tests", "test_data", "fragmenstein_filter_mols.sdf")
+        output_sdf = os.path.join("tests", "test_data", "test_fragmenstein_output.sdf")
+        with patch(
+            "sys.argv",
+            [
+                "filter/fragmenstein_filter.py",
+                "-i",
+                test_sdf,
+                "-o",
+                output_sdf,
+                "-a",
+                fragmentA_path,
+                "-b",
+                fragmentB_path,
+                "-A",
+                proteinA_path,
+                "-B",
+                proteinB_path,
+                "-W",
+                working_dir,
+                "-O",
+                output_dir,
+                "-p",
+                "x107-0A-x0678-0A"
+
+            ]
+        ):
+            main()
+        self.assertTrue(os.path.exists(output_sdf))
+        os.remove(output_sdf)
         remove_files(working_dir)
         remove_files(output_dir)
 

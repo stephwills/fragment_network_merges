@@ -2,20 +2,23 @@
 Used for 3D filtering of fragment merges by constrained embedding.
 """
 
+import os
+import sys
 import argparse
 import time
 from typing import Tuple
 
 import numpy as np
-from dm_job_utilities.dm_log import DmLog
 from filter.config_filter import config_filter
 from filter.generic_filter import Filter_generic
 from joblib import Parallel, delayed
 from rdkit import Chem, RDLogger
-from rdkit.Chem import AllChem, Mol, rdForceFieldHelpers, rdmolfiles
+from rdkit.Chem import Mol, rdForceFieldHelpers, rdmolfiles
 from utils.filter_utils import (
     ConstrainedEmbedMatches,
     add_coordinates,
+    calc_energy,
+    calc_unconstrained_energy,
     get_mcs,
     remove_xe,
 )
@@ -36,8 +39,8 @@ class EmbeddingFilter(Filter_generic):
         merge=None,
         mols=None,
         names=None,
-        pair_working_dir=None,
-        pair_output_dir=None,
+        work_pair_dir=None,
+        out_pair_dir=None,
     ):
         super().__init__(
             smis,
@@ -49,8 +52,8 @@ class EmbeddingFilter(Filter_generic):
             merge,
             mols,
             names,
-            pair_working_dir,
-            pair_output_dir,
+            work_pair_dir,
+            out_pair_dir,
         )
         self.results = None
 
@@ -83,33 +86,13 @@ class EmbeddingFilter(Filter_generic):
                 A.RemoveAtom(clash)  # remove atoms from one fragment
         return A, B
 
-    @staticmethod
-    def calc_energy(mol: Mol) -> float:
-        """
-        Calculate energy of molecule.
-        """
-        mol_energy = AllChem.UFFGetMoleculeForceField(mol).CalcEnergy()
-        return mol_energy
-
-    def calc_unconstrained_energy(
-        self, og_mol: Mol, n_conf: int = config_filter.N_CONFORMATIONS
-    ) -> float:
-        """
-        Calculate average energy of multiple unconstrained conformations of a molecule.
-        """
-        unconstrained_energies = []
-        for i in range(n_conf):  # generate conformations and calculate energy
-            mol = Chem.Mol(og_mol)
-            AllChem.EmbedMolecule(mol)
-            AllChem.UFFOptimizeMolecule(mol)
-            e = self.calc_energy(mol)
-            unconstrained_energies.append(e)
-        # calculate the average of all the energies
-        avg = sum(unconstrained_energies) / len(unconstrained_energies)
-        return avg
-
     def embedding(
-        self, fragA: Mol, fragB: Mol, merge_mol: Mol, synth: Mol, atom_clash_dist: float = config_filter.ATOM_CLASH_DIST
+        self,
+        fragA: Mol,
+        fragB: Mol,
+        merge_mol: Mol,
+        synth,
+        atom_clash_dist: float = config_filter.ATOM_CLASH_DIST,
     ) -> list:
         """
         Function to embed the full molecule, constraining the atoms that came from each fragment.
@@ -122,8 +105,8 @@ class EmbeddingFilter(Filter_generic):
         :type fragB: rdkit.Chem.Mol
         :param merge_mol: proposed merge
         :type merge_mol: rdkit.Chem.Mol
-        :param synth: synthon from fragment B used for expansion
-        :type synth: rdkit.Chem.Mol
+        :param synth: synthon from fragment B used for expansion if frag net; None if sim search
+        :type synth: rdkit.Chem.Mol or None
         :param atom_clash_dist: minimum distance between atoms to be considered as clashing
         :type atom_clash_dist: float
 
@@ -138,24 +121,47 @@ class EmbeddingFilter(Filter_generic):
         # for each, add coordinates
         mcsA_mols = [add_coordinates(fragA, mcsA, matches) for matches in mcsA_matches]
 
-        # substructure match for fragment B
-        synthB = remove_xe(synth)  # remove the xenon from the synthon
-        synthB_matches = fragB.GetSubstructMatches(synthB)
-        synthB_mols = [
-            add_coordinates(fragB, synthB, matches) for matches in synthB_matches
-        ]
+        if synth:
+            # substructure match for fragment B
+            synthB = remove_xe(synth)  # remove the xenon from the synthon
+            synthB_matches = fragB.GetSubstructMatches(synthB)
+            synthB_mols = [
+                add_coordinates(fragB, synthB, matches) for matches in synthB_matches
+            ]
 
-        # get all possible ref coordinates
-        ref_mols = []  # store ref molecules with different coordinates
-        for _mcsA_mol in mcsA_mols:
-            for _synthB_mol in synthB_mols:
-                # check if atoms overlap
-                mcsA_mol, synthB_mol = self.check_overlap(
-                    _mcsA_mol, _synthB_mol, atom_clash_dist
-                )
-                # combine substructures to get ref molecule
-                ref_mol = Chem.CombineMols(mcsA_mol, synthB_mol)
-                ref_mols.append(ref_mol)
+            # get all possible ref coordinates
+            ref_mols = []  # store ref molecules with different coordinates
+            for _mcsA_mol in mcsA_mols:
+                for _synthB_mol in synthB_mols:
+                    # check if atoms overlap
+                    mcsA_mol, synthB_mol = self.check_overlap(
+                        _mcsA_mol, _synthB_mol, atom_clash_dist
+                    )
+                    # combine substructures to get ref molecule
+                    ref_mol = Chem.CombineMols(mcsA_mol, synthB_mol)
+                    ref_mols.append(ref_mol)
+
+        else:
+            # substructure match for fragment B
+            # identify the atoms that came from fragment B
+            mcsB = get_mcs(merge_mol, fragB)
+            # get all possible matches with fragment B
+            mcsB_matches = fragB.GetSubstructMatches(mcsB)
+            # for each, add coordinates
+            mcsB_mols = [
+                add_coordinates(fragB, mcsB, matches) for matches in mcsB_matches
+            ]
+
+            # get all possible ref coordinates
+            ref_mols = []  # store ref molecules with different coordinates
+            for _mcsA_mol in mcsA_mols:
+                for _mcsB_mol in mcsB_mols:
+                    # check if atoms overlap
+                    mcsA_mol, mcsB_mol = self.check_overlap(
+                        _mcsA_mol, _mcsB_mol, atom_clash_dist
+                    )
+                    ref_mol = Chem.CombineMols(mcsA_mol, mcsB_mol)
+                    ref_mols.append(ref_mol)
 
         # Get substructure matches for merge and embed with all sets of coordinates
         all_merge_matches = [
@@ -187,7 +193,7 @@ class EmbeddingFilter(Filter_generic):
         merge: str,
         fragA: Mol,
         fragB: Mol,
-        synthon: str,
+        synthon,  # str if frag net; None if sim search
         energy_threshold: float = config_filter.ENERGY_THRESHOLD,
         n_conf: int = config_filter.N_CONFORMATIONS,
         atom_clash_dist: float = config_filter.ATOM_CLASH_DIST,
@@ -216,44 +222,53 @@ class EmbeddingFilter(Filter_generic):
         :return: whether molecule passes (True) or fails (False) filter
         :rtype: bool
         """
-        merge = Chem.MolFromSmiles(merge)
-        synthon = Chem.MolFromSmiles(synthon)
-        embedded_mols = self.embedding(fragA, fragB, merge, synthon, atom_clash_dist)
+        try:
+            merge = Chem.MolFromSmiles(merge)
+            if synthon:
+                synthon = Chem.MolFromSmiles(synthon)
+            embedded_mols = self.embedding(
+                fragA, fragB, merge, synthon, atom_clash_dist
+            )
 
-        result, embedded = False, None
-        if len(embedded_mols) == 0:
-            result = False
-            embedded = None
+            result, embedded = False, None
+            if len(embedded_mols) == 0:
+                result = False
+                embedded = None
 
-        else:
-            for embedded_mol in embedded_mols:
-                # energy of constrained conformation
-                const_energy = self.calc_energy(embedded_mol)
-                # energy of avg unconstrained conformation
-                unconst_energy = self.calc_unconstrained_energy(merge, n_conf)
-                # if the energy of the constrained conformation is less, then pass filter
-                if const_energy <= unconst_energy:
-                    result = True
-                    embedded = embedded_mol
-                    break
-                else:
-                    # if constrained energy > energy-threshold-fold greater, then fail filter
-                    ratio = const_energy / unconst_energy
-                    if ratio >= energy_threshold:
-                        result = False
-                        embedded = None
-                    else:
+            else:
+                for embedded_mol in embedded_mols:
+                    # energy of constrained conformation
+                    const_energy = calc_energy(embedded_mol)
+                    # energy of avg unconstrained conformation
+                    unconst_energy = calc_unconstrained_energy(merge, n_conf)
+                    # if the energy of the constrained conformation is less, then pass filter
+                    if const_energy <= unconst_energy:
                         result = True
                         embedded = embedded_mol
                         break
+                    else:
+                        # if constrained energy > energy-threshold-fold greater, then fail filter
+                        ratio = const_energy / unconst_energy
+                        if ratio >= energy_threshold:
+                            result = False
+                            embedded = None
+                        else:
+                            result = True
+                            embedded = embedded_mol
+                            break
 
-        return result, embedded
+            return result, embedded
+
+        except Exception as e:  # pass molecules that break the filter
+            print("Failed for merge", merge)
+            print(e)
+            return False, None
 
     def filter_all(
-        self, cpus: int = config_filter.N_CPUS_FILTER_PAIR, **kwargs
+        self, cpus: int = config_filter.N_CPUS_FILTER_PAIR, *args
     ) -> Tuple[list, list]:
         """
-        Runs the descriptor filter on all the SMILES in parallel.
+        Runs the overlap filter on all the SMILES in parallel.
 
         :param cpus: number of CPUs for parallelization
         :type cpus: int
@@ -261,22 +276,32 @@ class EmbeddingFilter(Filter_generic):
         :return: list of results (True or False); list of mols (RDKit molecules)
         :rtype: tuple
         """
-        res = Parallel(n_jobs=cpus, backend="multiprocessing")(
-            delayed(self.filter_smi)(smi, self._fragmentA, self._fragmentB, synthon, **kwargs)
-            for smi, synthon in zip(self.smis, self.synthons)
-        )
+        if self.synthons:
+            res = Parallel(n_jobs=cpus, backend="multiprocessing")(
+                delayed(self.filter_smi)(
+                    smi, self._fragmentA, self._fragmentB, synthon, *args
+                )
+                for smi, synthon in zip(self.smis, self.synthons)
+            )
+        else:
+            res = Parallel(n_jobs=cpus, backend="multiprocessing")(
+                delayed(self.filter_smi)(
+                    smi, self._fragmentA, self._fragmentB, None, *args
+                )
+                for smi in self.smis
+            )
         self.results = [r[0] for r in res]
         self.mols = [r[1] for r in res]
         return self.results, self.mols
 
 
-def main():
+def parse_args(args):
     parser = argparse.ArgumentParser(
         epilog="""
-    python filter/embedding_filter.py --input_file data/toFilter.sdf --output_file results.sdf
-    --fragmentA_file fragmentA.mol --fragmentB_file fragmentB.mol --energy_threshold 10
-    --n_conformations 50 --atom_clash_dist 1.0
-    """
+        python filter/embedding_filter.py --input_file data/toFilter.sdf --output_file results.sdf
+        --fragmentA_file fragmentA.mol --fragmentB_file fragmaentB.mol --energy_threshold 10
+        --n_conformations 50 --atom_clash_dist 1.0
+        """
     )
     # command line args definitions
     parser.add_argument(
@@ -296,6 +321,14 @@ def main():
     )
     parser.add_argument(
         "-b", "--fragmentB_file", required=True, help="fragment B mol file"
+    )
+    parser.add_argument(
+        "-c",
+        "--n_cpus",
+        required=False,
+        help="number of CPUs",
+        type=int,
+        default=os.cpu_count(),
     )
     parser.add_argument(
         "-e",
@@ -318,58 +351,24 @@ def main():
         default=1.0,
         help="max distance between fragment A and B atoms to remove from ref mol for embedding",
     )
+    return parser.parse_args(args)
 
-    args = parser.parse_args()
 
-    filter = EmbeddingFilter()
-    DmLog.emit_event("embedding_filter: ", args)
+def main():
+    from filter.generic_squonk import Squonk_generic
 
-    start = time.time()
-    count = 0
-    hits = 0
-    errors = 0
-
-    fragmentA = rdmolfiles.MolFromMolFile(args.fragmentA_file)
-    fragmentB = rdmolfiles.MolFromMolFile(args.fragmentB_file)
-
-    with Chem.SDWriter(args.output_file) as w:
-        with Chem.SDMolSupplier(args.input_file) as suppl:
-            for mol in suppl:
-                if mol is None:
-                    continue
-                else:
-                    count += 1
-                    try:
-                        smi = Chem.MolToSmiles(mol)
-                        synthon = mol.GetProp("synthon")
-                        res, embedded = filter.filter_smi(
-                            smi,
-                            fragmentA,
-                            fragmentB,
-                            synthon,
-                            args.energy_threshold,
-                            args.n_conf,
-                            args.atom_clash_dist,
-                        )
-                        if res:
-                            hits += 1
-                            embedded.SetProp("synthon", synthon)
-                            w.write(embedded)
-                    except Exception as e:
-                        DmLog.emit_event(
-                            "Failed to process molecule", count, Chem.MolToSmiles(mol)
-                        )
-                        errors += 1
-
-    end = time.time()
-    duration_s = int(end - start)
-    if duration_s < 1:
-        duration_s = 1
-
-    DmLog.emit_event(
-        count, "inputs,", hits, "hits,", errors, "errors.", "Time (s):", duration_s
+    args = parse_args(sys.argv[1:])
+    job = Squonk_generic(
+        "EmbeddingFilter",
+        args,
+        args.input_file,
+        args.output_file,
+        args.fragmentA_file,
+        args.fragmentB_file,
     )
-    DmLog.emit_cost(count)
+    job.execute_job(
+        args.n_cpus, args.energy_threshold, args.n_conformations, args.atom_clash_dist
+    )
 
 
 if __name__ == "__main__":

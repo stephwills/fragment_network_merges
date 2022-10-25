@@ -4,13 +4,13 @@ import argparse
 import json
 import os
 import shutil
+import sys
 import time
 from concurrent.futures import TimeoutError
 from multiprocessing import Manager
 from typing import Tuple
 
 import pyrosetta
-from dm_job_utilities.dm_log import DmLog
 from filter.config_filter import config_filter
 from filter.generic_filter import Filter_generic
 from fragmenstein import Victor
@@ -75,7 +75,7 @@ class FragmensteinFilter(Filter_generic):
         """
         If filter passes, move the working dir files to the output dir.
         """
-        output_subdir = os.path.join(self.out_pair_dir, name)
+        output_subdir = os.path.join(self.out_pair_dir, name.replace('_', '-'))
         if not os.path.exists(output_subdir):
             os.mkdir(output_subdir)
 
@@ -164,7 +164,7 @@ class FragmensteinFilter(Filter_generic):
             # initialise PyRosetta
             pyrosetta.init(
                 extra_options="""-no_optH false -mute all -ex1 -ex2 -ignore_unrecognized_res false
-                                            -load_PDB_components false -ignore_waters false"""
+                                            -load_PDB_components false -ignore_waters false -constant_seed"""
             )
 
             # get the fragments from the files
@@ -200,7 +200,7 @@ class FragmensteinFilter(Filter_generic):
             G_unbound = data["Energy"]["unbound_ref2015"]["total_score"]  # unbound
             deltaG = G_bound - G_unbound  # calculate energy difference
             comRMSD = data["mRMSD"]  # RMSD between two fragments and merge
-
+            # print(deltaG, comRMSD)
             # get number of fragments used for placement of SMILES
             regarded = 0
             for rmsd in data["RMSDs"]:
@@ -308,10 +308,11 @@ class FragmensteinFilter(Filter_generic):
                     idx = self._get_idx(name)
                     result = (idx, False, None, None, None)
                     res.append(result)
-                except Exception:
+                except Exception as e:
                     error_name = self.names[index]
                     error_smi = self.smis[index]
                     print(f"Error for merge {error_name}, smiles {error_smi}")
+                    print(e)
                     if error_name not in self.errors.keys():
                         self.errors[error_name] = "Non-timeout error"
                         with open(
@@ -335,14 +336,14 @@ class FragmensteinFilter(Filter_generic):
         return self.results, self.mols
 
 
-def main():
+def parse_args(args):
     parser = argparse.ArgumentParser(
         epilog="""
-    python filter/fragmenstein_filter.py --input_file data/toFilter.sdf --output results.sdf
-    --fragmentA_file fragmentA.mol --fragmentB_file fragmentB.mol
-    --proteinA_file fragmentA_apo-desolv.pdb --proteinB_file fragmentB_apo-desolv.pdb
-    --pair_name fragmentA-fragmentB --working_dir working --output_dir output
-    --n_cpus 2 --timeout 600 --residue 1"""
+        python filter/fragmenstein_filter.py --input_file data/toFilter.sdf --output results.sdf
+        --fragmentA_file fragmentA.mol --fragmentB_file fragmentB.mol
+        --proteinA_file fragmentA_apo-desolv.pdb --proteinB_file fragmentB_apo-desolv.pdb
+        --pair_name fragmentA-fragmentB --working_dir working --output_dir output
+        --n_cpus 2 --timeout 600 --residue 1"""
     )
     # command line args definitions
     parser.add_argument(
@@ -398,6 +399,14 @@ def main():
         help="number of seconds until Fragmenstein timeout",
     )
     parser.add_argument(
+        "-m",
+        "--comRMSD_threshold",
+        required=False,
+        default=1.0,
+        type=float,
+        help="combined RMSD threshold"
+    )
+    parser.add_argument(
         "-r",
         "--residue",
         required=False,
@@ -406,52 +415,33 @@ def main():
         help="covalent residue, default is 1 if none",
     )
 
-    args = parser.parse_args()
+    return parser.parse_args(args)
 
-    mols = [x for x in Chem.SDMolSupplier(args.input_file)]
-    smiles = [Chem.MolToSmiles(mol) for mol in mols]
-    synthons = [mol.GetProp("synthon") for mol in mols]
-    names = [f"{args.pair_name}-{i}" for i in range(len(smiles))]
 
-    filter = FragmensteinFilter(
-        smiles,
-        synthons,
+def main():
+    from filter.generic_squonk import Squonk_generic
+
+    args = parse_args(sys.argv[1:])
+    job = Squonk_generic(
+        "FragmensteinFilter",
+        args,
+        args.input_file,
+        args.output_file,
         args.fragmentA_file,
         args.fragmentB_file,
         args.proteinA_file,
         args.proteinB_file,
-        args.pair_name,
-        mols,
-        names,
         args.working_dir,
         args.output_dir,
+        args.pair_name
     )
 
-    DmLog.emit_event("fragmenstein_filter: ", args)
-
-    start = time.time()
-    count = 0
-    hits = 0
-    # errors = 0
-
-    results, placed_mols = filter.filter_all(args.n_cpus, args.timeoue, args.residue)
-
-    with Chem.SDWriter(args.output_file) as w:
-        for res, name, mol, synthon in zip(results, names, placed_mols, synthons):
-            count += 1
-            if res:
-                hits += 1
-                mol.SetProp("name", name)
-                mol.SetProp("synthon", synthon)
-                w.write(mol)
-
-        end = time.time()
-        duration_s = int(end - start)
-        if duration_s < 1:
-            duration_s = 1
-
-        DmLog.emit_event(count, "inputs,", hits, "hits,", "Time (s):", duration_s)
-        DmLog.emit_cost(count)
+    job.execute_job(
+        args.n_cpus,
+        args.timeout,
+        args.comRMSD_threshold,
+        args.residue
+    )
 
 
 if __name__ == "__main__":

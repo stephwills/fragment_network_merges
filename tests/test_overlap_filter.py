@@ -59,7 +59,7 @@ class TestOverlapFilter(unittest.TestCase):
                 get_protein("Mpro", "x0107_0A", False, frag_dir),
                 "-B",
                 get_protein("Mpro", "x0678_0A", False, frag_dir),
-                "-c",
+                "-t",
                 "0.15",
             ]
         )
@@ -83,7 +83,7 @@ class TestOverlapFilter(unittest.TestCase):
                 get_protein("Mpro", "x0107_0A", False, frag_dir),
                 "-B",
                 get_protein("Mpro", "x0678_0A", False, frag_dir),
-                "-c",
+                "--clash_threshold",
                 "0.15",
             ],
         ):

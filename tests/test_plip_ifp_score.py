@@ -1,15 +1,26 @@
 """Tests the interaction fingeprint scoring script"""
 
 import os
+import shutil
 import unittest
 from unittest.mock import patch
 
-from filter.sucos_score import SuCOSScore, main
+from filter.plip_ifp_score import PlipIfpScore, main
 from utils.utils import get_mol
 
 
-class TestSuCOSScore(unittest.TestCase):
-    """Tests the SuCOS scoring function"""
+def delete_files(dir):
+    for intermed_file in os.listdir(dir):
+        if os.path.isdir(os.path.join(os.path.join(dir, intermed_file))):
+            shutil.rmtree(os.path.join(os.path.join(dir, intermed_file)))
+        for file_sub in ["interactions", "fA", "fB"]:
+            if file_sub in intermed_file:
+                if os.path.exists(os.path.join(dir, intermed_file)):
+                    os.remove(os.path.join(dir, intermed_file))
+
+
+class TestPlipIfpScore(unittest.TestCase):
+    """Tests the PLIP IFP scoring function"""
 
     def test_scoring(self):
         """
@@ -26,15 +37,29 @@ class TestSuCOSScore(unittest.TestCase):
         mol_dir = os.path.join("tests", "test_data", "for_scoring")
         mol_fnames = [n.replace("_", "-") for n in names]
         mol_files = [os.path.join(mol_dir, f"{f}.minimised.mol") for f in mol_fnames]
-        scorer = SuCOSScore(
+        apo_files = [
+            os.path.join(mol_dir, f"{f}.holo_minimised_nolig.pdb") for f in mol_fnames
+        ]
+        holo_files = [
+            os.path.join(mol_dir, f"{f}.holo_minimised.pdb") for f in mol_fnames
+        ]
+        work_dir = mol_dir
+        output_dir = os.path.join("tests", "test_output")
+        scorer = PlipIfpScore(
+            names=names,
             fragmentA=fragmentA,
             fragmentB=fragmentB,
             mol_files=mol_files,
+            apo_files=apo_files,
+            holo_files=holo_files,
+            work_pair_dir=work_dir,
+            out_pair_dir=output_dir,
         )
+
         scores = scorer.score_all()
-        actual_scores = [0.53, 0.71, 0.67]
-        rounded_scores = [round(s, 2) for s in scores]
-        self.assertEqual(actual_scores, rounded_scores)
+        rounded_scores = [0.5, 0.6, 0.6]
+        self.assertEqual(rounded_scores, [round(s, 1) for s in scores])
+        delete_files(mol_dir)
 
     def test_main(self):
         """Check that main executes correctly and produces output file"""
@@ -51,7 +76,7 @@ class TestSuCOSScore(unittest.TestCase):
         with patch(
             "sys.argv",
             [
-                "filter/sucos_score.py",
+                "filter/plip_ifp_score.py",
                 "-i",
                 input_sdf,
                 "-o",
@@ -61,12 +86,17 @@ class TestSuCOSScore(unittest.TestCase):
                 "-b",
                 fragmentB,
                 "-t",
-                "0.5"
+                "0.5",
+                "-W",
+                dir,
+                "-O",
+                dir,
             ],
         ):
             main()
         self.assertTrue(os.path.exists(output_sdf))
         os.remove(output_sdf)
+        delete_files(os.path.join("tests", "test_data", "for_scoring"))
 
 
 if __name__ == "__main__":
