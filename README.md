@@ -28,18 +28,17 @@ The merges require filtering to find the most promising compounds and those in w
 
 ## Installation
 
-To be updated
+Create environment from the environment.yml file using `conda env create -f environment.yml`
 
-### Prerequisites
+Clone the GitHub repository using `git clone https://github.com/stephwills/fragment_network_merges.git` and install using `pip install -e .`
 
-* rdkit
-* oddt
-* PLIP
-* neo4j
-* pymol open-source
-* Fragmenstein (and PyRosetta)
+### Optional
 
-To install Fragmenstein, follow the instructions in the GitHub repository. Fragmenstein requires PyRosetta, which requires an academic license.
+Packages for optional filtering steps include:
+* plip == 2.2.2
+* fragmenstein == 0.9.11
+
+To install PLIP, follow the instructions on the GitHub repository (requires OpenBabel). To install Fragmenstein, follow the instructions in the GitHub repository. Fragmenstein requires PyRosetta, which requires an academic license.
 ## Usage
 
 ### Merge
