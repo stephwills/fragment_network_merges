@@ -60,6 +60,7 @@ class TestPlipIfpScore(unittest.TestCase):
         rounded_scores = [0.5, 0.6, 0.6]
         self.assertEqual(rounded_scores, [round(s, 1) for s in scores])
         delete_files(mol_dir)
+        delete_files(os.path.join('tests', 'test_output'))
 
     def test_main(self):
         """Check that main executes correctly and produces output file"""
@@ -97,6 +98,7 @@ class TestPlipIfpScore(unittest.TestCase):
         self.assertTrue(os.path.exists(output_sdf))
         os.remove(output_sdf)
         delete_files(os.path.join("tests", "test_data", "for_scoring"))
+        delete_files(os.path.join('tests', 'test_output'))
 
 
 if __name__ == "__main__":
