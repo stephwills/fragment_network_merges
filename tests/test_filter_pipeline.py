@@ -190,7 +190,7 @@ class TestFilterPipeline(unittest.TestCase):
         proteinB = get_protein("Mpro", "x0678_0A", False, frag_dir)
         target = "Mpro"
         filter_steps = ["FragmensteinFilter"]
-        score_steps = ["IfpScore"]
+        score_steps = ["PlipIfpScore"]
         output_dir = "tests/test_output"
         working_dir = "tests/test_working"
 
@@ -232,7 +232,7 @@ class TestFilterPipeline(unittest.TestCase):
         proteinB = get_protein("Mpro", "x0072_0A", False)
         target = "Mpro"
         filter_steps = ["FragmensteinFilter"]
-        score_steps = ["IfpScore"]
+        score_steps = ["PlipIfpScore"]
         output_dir = "tests/test_output"
         working_dir = "tests/test_working"
 

@@ -256,7 +256,7 @@ class MergerFinder_generic(ABC):
         # get fragments A and B from the tuple
         fragmentA, fragmentB = fragments[0], fragments[1]
         nameA, nameB = names[0], names[1]
-        molA, molB = get_mol(target, nameA, True), get_mol(target, nameB, True)
+        molA, molB = get_mol(target, nameA, True, fragalysis_dir=fragalysis_dir), get_mol(target, nameB, True, fragalysis_dir=fragalysis_dir)
         print(f"Expanding fragment A: {nameA} with synthons of fragment B: {nameB}")
 
         # check if file already exists containing merges
@@ -330,7 +330,7 @@ class MergerFinder_generic(ABC):
 
     ### NEW CODE TO PREVENT MAKING REDUNDANT QUERIES ###
     def get_unique_synthons(
-        self, nameA: str, nameBs: list, target: str
+        self, nameA: str, nameBs: list, target: str, fragalysis_dir=config_merge.FRAGALYSIS_DATA_DIR
     ) -> Tuple[list, dict]:
         """
         For a given fragment A, get the synthons for each fragment B and thus the unique synthons across all pairs
@@ -350,14 +350,14 @@ class MergerFinder_generic(ABC):
         all_synthons = set()  # store all unique synthons
         synthon_dict = {}  # store the synthons associated with each fragment B
         total_synthons = 0  # record total synthons
-        molA = get_mol(target, nameA, True)  # get mol for fragment A
+        molA = get_mol(target, nameA, True, fragalysis_dir=fragalysis_dir)  # get mol for fragment A
 
         for nameB in nameBs:
             print(f"Generating synthons: fragment A: {nameA}; fragment B: {nameB}")
 
             # get fragment B smiles and mol
-            fragmentB = get_smiles(target, nameB)
-            molB = get_mol(target, nameB, True)
+            fragmentB = get_smiles(target, nameB, fragalysis_dir=fragalysis_dir)
+            molB = get_mol(target, nameB, True, fragalysis_dir=fragalysis_dir)
 
             # generate the synthons from fragment B
             synthons = self.get_synthons(fragmentB)
@@ -387,6 +387,7 @@ class MergerFinder_generic(ABC):
         target: str,
         output_dir=None,
         working_dir=config_merge.WORKING_DIR,
+        fragalysis_dir=config_merge.FRAGALYSIS_DATA_DIR
     ) -> dict:
         """
         For a given fragment A and all the synthons generated from the fragment B pairs, function queries the network
@@ -423,7 +424,7 @@ class MergerFinder_generic(ABC):
             timings = {}
 
         # run database query and expansion
-        fragA = get_smiles(target, nameA)
+        fragA = get_smiles(target, nameA, fragalysis_dir=fragalysis_dir)
         print(f"Generating expansions for fragment {nameA}")
         print(fragA, all_synthons)
         # run queries
@@ -482,9 +483,10 @@ class MergerFinder_generic(ABC):
         target,
         output_dir=None,
         working_dir=config_merge.WORKING_DIR,
+        fragalysis_dir=config_merge.FRAGALYSIS_DATA_DIR
     ):
         nameBs = pair_dict[nameA]
-        unique_synthons, synthon_dict = self.get_unique_synthons(nameA, nameBs, target)
+        unique_synthons, synthon_dict = self.get_unique_synthons(nameA, nameBs, target, fragalysis_dir)
         all_expansions = self.get_all_expansions(
             nameA, unique_synthons, target, output_dir, working_dir
         )
@@ -509,6 +511,7 @@ class MergerFinder_generic(ABC):
         cpus=config_merge.N_CPUS_FILTER_PAIR,
         output_dir=None,
         working_dir=config_merge.WORKING_DIR,
+        fragalysis_dir=config_merge.FRAGALYSIS_DATA_DIR
     ):
         """
         Function is given the whole list of pairs of enumerated fragments and generates all merges.
@@ -535,7 +538,7 @@ class MergerFinder_generic(ABC):
         pair_dict = get_pair_dict(name_pairs)
         Parallel(n_jobs=cpus, backend="multiprocessing")(
             delayed(self._expand_fragmentA)(
-                nameA, pair_dict, target, output_dir, working_dir
+                nameA, pair_dict, target, output_dir, working_dir, fragalysis_dir
             )
             for nameA in pair_dict
         )
