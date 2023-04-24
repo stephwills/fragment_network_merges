@@ -490,7 +490,7 @@ class MergerFinder_generic(ABC):
         all_expansions = self.get_all_expansions(
             nameA, unique_synthons, target, output_dir, working_dir
         )
-
+        # all_expansions = {key: [] for key in unique_synthons}
         for nameB in nameBs:
             # save a file containing expansions for each fragment pair
             dict_to_save = {}
@@ -543,6 +543,42 @@ class MergerFinder_generic(ABC):
             for nameA in pair_dict
         )
 
+    def R_group_expansion(
+            self,
+            target,
+            merge,
+            nameA,
+            nameB,
+    ):
+        smilesA, smilesB = get_smiles(target, nameA), get_smiles(target, nameB)
+        merge = Chem.MolToSmiles(Chem.MolFromSmiles(merge))
+        expansions = set()
+        with self.getSearchSession() as session:
+            synthons = session.find_synthons(smilesB)
+            print(f"Found {len(synthons)} synthons")
+            substituents = []
+            for synthon in synthons:
+                synthon_mol = Chem.MolFromSmiles(synthon)
+                if synthon_mol.GetNumAtoms() <= 2:
+                    substituents.append(synthon)
+            print(len(substituents), 'substituents for querying')
+            print('substituents', substituents)
+
+            for substituent in substituents:
+                expans = session.add_substituent(merge,
+                                                 substituent)
+                for exp in expans:
+                    expansions.add(exp)
+        print('expansions', expansions)
+        print('')
+        return list(expansions)
+
+    def add_known_substituent(self, merge, substituent):
+        with self.getSearchSession() as session:
+            expansions = session.add_substituent(merge,
+                                                 substituent)
+            print('expansions', expansions)
+        return list(expansions)
 
 def add_required_synthons(labels: set, synthon: str):
     """
