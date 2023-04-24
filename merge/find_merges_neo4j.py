@@ -162,6 +162,39 @@ class Neo4jDriverWrapper(SearchSession_generic):
             min_hac_fa,
         )
 
+    def _add_substituent(
+        self,
+        tx,
+        smiles: str,
+        substituent: str,
+    ) -> set:
+
+        query = (
+                "MATCH (fa:F2 {smiles: $smiles})"
+                "<-[e:FRAG]-(c:Mol) WHERE"
+                " (split(e.label, '|')[1] = $substituent OR split(e.label, '|')[4] = $substituent)"
+                " RETURN DISTINCT c"
+        )
+        expansions = set()
+        for record in tx.run(query, smiles=smiles, substituent=substituent):
+            node = record["c"]
+            expansions.add(node["smiles"])
+        return expansions
+
+    def add_substituent(
+        self,
+        smiles: str,
+        substituent: str,
+    ) -> set:
+        """
+        Implements self.find_expansions
+        """
+        return self.session.read_transaction(
+            self._add_substituent,
+            smiles,
+            substituent
+        )
+
 
 class MergerFinder_neo4j(MergerFinder_generic):
     def __init__(self, **kwargs):

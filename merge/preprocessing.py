@@ -7,6 +7,8 @@ import os
 
 import numpy as np
 from merge.config_merge import config_merge
+from rdkit import Chem
+from rdkit.Chem import rdFMCS
 from utils.utils import get_distance, get_mol, load_json
 
 
@@ -149,3 +151,53 @@ def check_merges_run(smiles_pairs, name_pairs, output_dir):
                 print(f"{len(name_pairs)} merge pairs remaining")
 
         return smiles_pairs, name_pairs
+
+
+def calculate_msd(molA, molB, mapping):
+    confA = molA.GetConformer()
+    confB = molB.GetConformer()
+    return sum([(confA.GetAtomPosition(a).x - confB.GetAtomPosition(b).x) ** 2 +
+                (confA.GetAtomPosition(a).y - confB.GetAtomPosition(b).y) ** 2 +
+                (confA.GetAtomPosition(a).z - confB.GetAtomPosition(b).z) ** 2 for a, b in mapping])
+
+
+def calculate_rmsd(molA, molB, mapping) -> float:
+    return (calculate_msd(molA, molB, mapping) / len(mapping)) ** 0.5
+
+
+def check_similarity(mol1, mol2, num_atoms_not_mcs=config_merge.NUM_ATOMS_NOT_MCS, rmsd_threshold=config_merge.MCS_RMSD_THRESHOLD):
+    mcs = Chem.MolFromSmarts(rdFMCS.FindMCS([mol1, mol2], completeRingsOnly=True).smartsString)
+    mcs_atoms = mcs.GetNumAtoms()
+    mol1_atoms = mol1.GetNumAtoms() - mcs_atoms
+    mol2_atoms = mol2.GetNumAtoms() - mcs_atoms
+    if mol1_atoms > num_atoms_not_mcs or mol2_atoms > num_atoms_not_mcs:
+        return True
+
+    mapping = []
+    mol1_matches = mol1.GetSubstructMatch(mcs)
+    mol2_matches = mol2.GetSubstructMatch(mcs)
+    for mol1_match, mol2_match in zip(mol1_matches, mol2_matches):
+        mapping.append((mol1_match, mol2_match))
+
+    rmsd = calculate_rmsd(mol1, mol2, mapping)
+    if rmsd <= rmsd_threshold:
+        return False
+
+    else:
+        return True
+
+
+def check_too_similar(fragment_pairs, name_pairs, target, num_atoms_not_mcs=3, rmsd_threshold=2):
+    filtered_fragment_pairs = []
+    filtered_name_pairs = []
+
+    for fragment_pair, name_pair in zip(fragment_pairs, name_pairs):
+        fragmentA = get_mol(target, name_pair[0], True)
+        fragmentB = get_mol(target, name_pair[1], True)
+
+        check_similar = check_similarity(fragmentA, fragmentB, num_atoms_not_mcs, rmsd_threshold)
+        if check_similar:
+            filtered_fragment_pairs.append(fragment_pair)
+            filtered_name_pairs.append(name_pair)
+
+    return filtered_fragment_pairs, filtered_name_pairs

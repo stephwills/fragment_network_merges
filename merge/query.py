@@ -4,11 +4,11 @@ import argparse
 
 from merge.config_merge import config_merge
 from merge.find_merges import getFragmentNetworkSearcher
-from merge.preprocessing import check_fragment_pairs, check_merges_run
+from merge.preprocessing import check_fragment_pairs, check_merges_run, check_too_similar
 from utils.utils import get_smiles
 
 
-def preprocess_fragments(target, fragment_names, output_dir=None):
+def preprocess_fragments(target, fragment_names, output_dir=None, remove_similar=False):
     """
     Preprocess the list of fragments and get all the possible fragment pairs
     to generate merges from.
@@ -30,6 +30,12 @@ def preprocess_fragments(target, fragment_names, output_dir=None):
     smiles_pairs, name_pairs = check_fragment_pairs(
         smiles_pairs, name_pairs, target
     )  # check distance between pair
+    if remove_similar:
+        smiles_pairs, name_pairs = check_too_similar(
+            smiles_pairs,
+            name_pairs,
+            target
+        )
     smiles_pairs, name_pairs = check_merges_run(
         smiles_pairs, name_pairs, output_dir
     )  # check if merges run already
@@ -65,6 +71,12 @@ def main():
         help="the directory where intermediate results will be computed",
         required=False,
     )
+    parser.add_argument(
+        "-s",
+        "--remove_similar_fragments",
+        help="remove fragments that are too similar from merging query",
+        default=False
+    )
 
     args = parser.parse_args()
 
@@ -74,7 +86,7 @@ def main():
 
     # get all fragment pairs and check they exist in the network
     smiles_pairs, name_pairs = preprocess_fragments(
-        args.target, args.fragments, args.output_dir
+        args.target, args.fragments, args.output_dir, args.remove_similar_fragments
     )
     print("Fragments have been processed!")
 

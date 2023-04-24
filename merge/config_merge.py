@@ -26,6 +26,8 @@ class Config(metaclass=Singleton):
         # FOR FILTERING THE SYNTHONS BEFORE QUERYING THE DATABASE
         MIN_CARBONS=3,  # the minimum number of carbons for a synthon to be used in the expansion
         SYNTH_OVERLAP=0.5,  # the proportion of overlap between a synthon found in both fragments for it to be ruled out
+        NUM_ATOMS_NOT_MCS=3,  # number of atoms not included in MCS between fragments when checking for too similar pairs
+        MCS_RMSD_THRESHOLD=2,  # threshold for ruling out fragment pairs that are too similar (RMSD between MCS atoms)
     )
 
     @classmethod
