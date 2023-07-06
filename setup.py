@@ -13,12 +13,4 @@ setup(
     long_description_content_type='text/markdown',
     maintained_email='stephanie.wills@balliol.ox.ac.uk',
     packages=find_packages(),
-    install_requires=[
-        'neo4j',
-        'numpy',
-        'rdkit',
-        'requests',
-        'joblib',
-        'fragmenstein'
-    ]
 )

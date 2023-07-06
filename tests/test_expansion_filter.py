@@ -2,70 +2,85 @@
 
 import os
 import unittest
-from rdkit import Chem
+from unittest.mock import patch
 
-from filter.expansion_filter import ExpansionFilter
+from filter.expansion_filter import ExpansionFilter, main
 from merge.preprocessing import get_mol
 
-frag_dir = os.path.join('tests', 'test_Fragalysis')
-fragmentA_path = get_mol('nsp13', 'x0176_0B', frag_dir)
-fragmentB_path = get_mol('nsp13', 'x0034_0B', frag_dir)
-fragmentA = get_mol('nsp13', 'x0176_0B', frag_dir, True)
-fragmentB = get_mol('nsp13', 'x0034_0B', frag_dir, True)
+fragalysis_dir = "tests/test_Fragalysis"
+fragmentA = get_mol("nsp13", "x0276_0B", True)
+fragmentB = get_mol("nsp13", "x0034_0B", True)
+test_sdf = os.path.join("tests", "test_data", "embedding_filter_mols.sdf")
+output_sdf = os.path.join("tests", "test_data", "test_embedding_output.sdf")
+test_fragmentA = get_mol("nsp13", "x0034_0B", False, fragalysis_dir)
+test_fragmentB = get_mol("nsp13", "x0176_0B", False, fragalysis_dir)
+
 
 class TestExpansionFilter(unittest.TestCase):
     """Tests the expansion filter function"""
 
-    def test_check_for_mcs_passing(self):
-        """Tests the MCS is retrieved correctly"""
-        smi = 'CCC(CCC(O)c1ccccc1F)NC(=O)OC(C)(C)C'
-        mol = Chem.MolFromSmiles(smi)
-        filter = ExpansionFilter([smi], [], fragmentA_path, fragmentB_path)
-        mols = [fragmentA, fragmentB, mol]
-        mcs_smiles = Chem.MolToSmiles(filter._check_for_mcs(mols))
-        # MCS is benzene with methyl attached
-        correct_mcs = 'Cc1ccccc1'
-        self.assertEqual(mcs_smiles, correct_mcs)
-
-    def test_check_for_mcs_failing(self):
-        """Tests that if no MCS, function returns None"""
-        smi = ''
-        mol = Chem.MolFromSmiles(smi)
-        filter = ExpansionFilter([smi], [], fragmentA_path, fragmentB_path)
-        mols = [fragmentA, fragmentB, mol]
-        mcs_mol = filter._check_for_mcs(mols)
-        self.assertIsNone(mcs_mol)
-
-    def test_expansion_filter_failing(self):
-        """
-        Tests the filter fails where most of the synthon is also in fragment A
-        (so looks like an expansion).
-        """
-        smi = 'CCC(CCC(O)c1ccccc1F)NC(=O)OC(C)(C)C'
-        synthon = 'Fc1ccccc1[Xe]'
-        filter = ExpansionFilter([smi], [synthon], fragmentA_path, fragmentB_path)
-        failing_case = filter.filter_smi(smi, fragmentA, fragmentB, synthon, 0.9)
-        self.assertEqual(failing_case, False)
-
     def test_expansion_filter_passing(self):
         """Tests the filter passes molecules correctly"""
-        smi = 'CCC(=O)NC1CCN(CCNS(C)(=O)=O)C1'
-        synthon = 'CCC(=O)N[Xe]'
-        filter = ExpansionFilter([smi], [synthon], fragmentA_path, fragmentB_path)
-        passing_case = filter.filter_smi(smi, fragmentA, fragmentB, synthon, 0.9)
+        smi = "Fc1ccc(CCNc2ccc(F)cc2)cc1"
+        synthon = "Fc1ccccc1[Xe]"
+        filter = ExpansionFilter()
+        passing_case = filter.filter_smi(smi, synthon, fragmentA, fragmentB, 3)
         self.assertEqual(passing_case, True)
 
-    def test_expansion_filter_edge(self):
-        """Test edge case where >1 MCS match"""
-        fragmentA_ = get_mol('nsp13', 'x0311_0B', frag_dir, True)
-        fragmentB_ = get_mol('nsp13', 'x0438_0B', frag_dir, True)
-        fragmentA_path_ = get_mol('nsp13', 'x0311_0B', frag_dir)
-        fragmentB_path_ = get_mol('nsp13', 'x0438_0B', frag_dir)
-        smi = 'CCC(=O)Nc1ccccc1Cc1ccccc1'
-        synthon = 'CCC(=O)N[Xe]'
-        filter = ExpansionFilter([smi], [synthon], fragmentA_path_, fragmentB_path_)
-        passing_case = filter.filter_smi(smi, fragmentA_, fragmentB_, synthon, 0.9)
-        self.assertEqual(passing_case, True)
+    def test_expansion_filter_valence(self):
+        """Tests the filter for molecules that have create valence errors"""
+        smis = [
+            "CCC(Cc1ccco1)NCCn1cnc(C)c1C",
+            "Cn1c(-c2ccco2)nn(CN2CCc3ccccc3C2)c1=S",
+            "Cc1ncn(C(C)C(=O)NCc2ccco2)c1C",
+            "Cc1[nH]c(-c2ccco2)nc1CN1CCNCC1",
+            "Cc1ncn(CC(=O)N(C)Cc2ccco2)c1C",
+            "Cc1ncn(CCNC(=O)N(Cc2ccncc2)CC(C)C)c1C",
+            "Cc1ncn(CCNC(=O)Cc2ccncc2)c1C",
+            "CCC(NC(=O)Cn1cnc(C)c1C)c1ccncc1",
+        ]
+        syns = [
+            "[Xe]c1ccco1",
+            "[Xe]c1ccco1",
+            "[Xe]c1ccco1",
+            "[Xe]c1ccco1",
+            "[Xe]c1ccco1",
+            "[Xe]c1ccncc1",
+            "[Xe]c1ccncc1",
+            "[Xe]c1ccncc1",
+        ]
+        fragmentA = get_mol("PGN_RS02895PGA", "x0051_0A", True)
+        fragmentB = get_mol("PGN_RS02895PGA", "x0087_0A", True)
+        filter = ExpansionFilter()
+        results = [
+            filter.filter_smi(smi, syn, fragmentA, fragmentB, 3)
+            for smi, syn in zip(smis, syns)
+        ]
+        test_results = [True] * 8
+        self.assertEqual(results, test_results)
 
-if __name__ == '__main__':
+    def test_main(self):
+        """Check that main executes correctly and produces output file"""
+        with patch(
+            "sys.argv",
+            [
+                "filter/expansion_filter.py",
+                "-i",
+                test_sdf,
+                "-o",
+                output_sdf,
+                "-A",
+                test_fragmentA,
+                "-B",
+                test_fragmentB,
+                "--min_atoms",
+                "2",
+            ],
+        ):
+            main()
+        self.assertTrue(os.path.exists(output_sdf))
+        os.remove(output_sdf)
+
+
+if __name__ == "__main__":
     unittest.main()
