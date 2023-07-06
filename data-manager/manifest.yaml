@@ -1,0 +1,15 @@
+---
+
+# The Data Manager Job Definition manifest file.
+kind: DataManagerManifest
+kind-version: '2021.1'
+
+# More than one manifest can be placed in the 'data-manager' directory,
+# where a default file called 'manifest.yaml' is assumed by the Job tester
+# (jote).
+
+# Here we list job definition files,
+# which must use the extension .yaml or .yml extension,
+# must be located in the same directory as the manifest.
+job-definition-files:
+- fragment_network_merges.yaml
