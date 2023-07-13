@@ -1,0 +1,15 @@
+---
+version: '3.0'
+
+# By deafult a "latest" tag is applied to the images.
+# To refine the tag, build with a suitable .env that defines IMAGE_TAG
+# or build with a command line argument: -
+#
+#   docker-compose build --build-arg IMAGE_TAG=1.0.0
+
+services:
+
+  fragment_network_merges:
+    build:
+      context: .
+    image: xchem/squonk2-fragment_network_merges:${IMAGE_TAG:-latest}

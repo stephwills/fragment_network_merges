@@ -6,7 +6,16 @@ import importlib
 import time
 from abc import ABC
 
-from dm_job_utilities.dm_log import DmLog
+try:
+    from dm_job_utilities.dm_log import DmLog
+except ImportError:
+    class DmLog():
+        @staticmethod
+        def emit_event(*args, **kwargs):
+            pass
+        @staticmethod
+        def emit_cost(*args, **kwargs):
+            pass
 from filter.config_filter import config_filter
 from rdkit import Chem
 

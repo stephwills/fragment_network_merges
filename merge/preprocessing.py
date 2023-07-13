@@ -150,7 +150,7 @@ def check_merges_run(smiles_pairs, name_pairs, output_dir):
                 print("The following merges have already been run", already_run)
                 print(f"{len(name_pairs)} merge pairs remaining")
 
-        return smiles_pairs, name_pairs
+    return smiles_pairs, name_pairs
 
 
 def calculate_msd(molA, molB, mapping):

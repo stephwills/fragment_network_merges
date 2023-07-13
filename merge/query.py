@@ -1,6 +1,7 @@
 """Runs the preprocessing of fragments and merge generation"""
 
 import argparse
+from typing import Optional, List
 
 from merge.config_merge import config_merge
 from merge.find_merges import getFragmentNetworkSearcher
@@ -42,6 +43,25 @@ def preprocess_fragments(target, fragment_names, output_dir=None, remove_similar
 
     return smiles_pairs, name_pairs
 
+def run_query(fragments:List[str], target:str, output_dir:str, remove_similar_fragments:bool, working_dir:Optional[str]):
+
+    # check if working dir set
+    if working_dir:
+        config_merge.WORKING_DIR = working_dir
+
+    # get all fragment pairs and check they exist in the network
+    smiles_pairs, name_pairs = preprocess_fragments(
+        target, fragments, output_dir, remove_similar_fragments
+    )
+    print("Fragments have been processed!")
+
+    # run the database query; this will create json files containing the merges for each pair
+    # in the output directory
+    fragmentNetworkSearcher = getFragmentNetworkSearcher()
+    fragmentNetworkSearcher.expand_fragmentA(
+        name_pairs, target, output_dir=output_dir
+    )
+
 
 def main():
     parser = argparse.ArgumentParser(
@@ -78,25 +98,9 @@ def main():
         default=False
     )
 
-    args = parser.parse_args()
+    kwargs = parser.parse_args()
 
-    # check if working dir set
-    if args.working_dir:
-        config_merge.WORKING_DIR = args.working_dir
-
-    # get all fragment pairs and check they exist in the network
-    smiles_pairs, name_pairs = preprocess_fragments(
-        args.target, args.fragments, args.output_dir, args.remove_similar_fragments
-    )
-    print("Fragments have been processed!")
-
-    # run the database query; this will create json files containing the merges for each pair
-    # in the output directory
-    fragmentNetworkSearcher = getFragmentNetworkSearcher()
-    fragmentNetworkSearcher.expand_fragmentA(
-        name_pairs, args.target, output_dir=args.output_dir
-    )
-
+    run_query(**vars(kwargs))
 
 if __name__ == "__main__":
     main()

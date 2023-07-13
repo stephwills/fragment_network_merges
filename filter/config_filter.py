@@ -44,6 +44,7 @@ class Config_filter(metaclass=Singleton):
         N_ELAB_DISTS=10,  # elaboratability_score.py; number of dists to closest atoms to calculate
         MIN_ELAB_ANGLE=10,  # elaboratability_score.py; angle between dist vectors
         PLIP_SCORE_THRESHOLD=0.5,  # plip_ifp_score.py; proportion of bonds maintained
+        USE_FRAGMENSTEIN_WICTOR=True #instead of victor
     )
 
     @classmethod

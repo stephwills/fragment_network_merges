@@ -20,30 +20,38 @@ jobs:
     - fbdd
     doc-url: fragment_network_merges/fragment_network_merges.md
     image:
-      name: informaticsmatters/squonk2-fragmenstein
-      tag: stable
+      name: xchem/squonk2-fragment_network_merges
+      tag: latest
       project-directory: /data
       working-directory: /data
       memory: 8Gi
       fix-permissions: true
+      environment:
+      - name: NEO4J_USERNAME
+        value-from:
+          secret:
+            name: im-fragnet-graph
+            key: username
+      - name: NEO4J_PASSWORD
+        value-from:
+          secret:
+            name: im-fragnet-graph
+            key: password
+      - name: NEO4J_SERVER
+        value-from:
+          secret:
+            name: im-fragnet-graph
+            key: server
     command: >-
-      nextflow -log {{ DM_INSTANCE_DIRECTORY }}/nextflow.log
-      run {{ CODE_DIRECTORY|default('/code') }}/frag_merge.nf
+      /code/squonkScripts/main.py
       --fragments '{{ fragments|join(",") }}'
-      --protein '{{ protein }}'
+      --proteins '{{ proteins|join(",") }}'
       --outfile '{{ outfile }}'
-      {% if count is defined %}--count {{ count }}{% endif %}
       --ref_mols_prop ref_mols
       {% if fragIdField %}--frag_id_field '{{ fragIdField }}'{% endif %}
       {% if smilesFieldName %}--smiles_prop '{{ smilesFieldName }}'{% endif %}
       {% if proteinFieldName %}--protein_prop_name '{{ proteinFieldName }}'{% endif %}
       {% if proteinFieldValue %}--protein_prop_value '{{ proteinFieldValue }}'{% endif %}
-      {% if minNum is defined %}--min_num {{ minNum }}{% endif %}
-      {% if maxNum is defined %}--max_num {{ maxNum }}{% endif %}
-      {% if maxDist is defined %}--max_dist {{ maxDist }}{% endif %}
-      {% if resultsDir is defined %}--publish_dir '{{ resultsDir }}'{% endif %}
-      -with-trace {{ DM_INSTANCE_DIRECTORY }}/trace.txt
-      -with-report {{ DM_INSTANCE_DIRECTORY }}/report.html #TODO: Change this
     variables:
       order:
         inputs:
@@ -70,6 +78,7 @@ jobs:
             type: file
           proteins:
             title: PDB file for protein
+            multiple: true
             mime-types:
             - chemical/x-pdb
             type: file
@@ -91,14 +100,18 @@ jobs:
                     type: string
                     description: Molecule index
                     required: true
-                  DDG:
+#                  DDG:
+#                    type: number
+#                    description: >-
+#                      Delta deta G
+#                    required: true
+#                  RMSD:
+#                    type: number
+#                    description: RMSD from input fragments
+#                    required: true
+                  SuCOSScore:
                     type: number
-                    description: >-
-                      Delta deta G
-                    required: true
-                  RMSD:
-                    type: number
-                    description: RMSD from input fragments
+                    description: SuCOSScore from input fragments
                     required: true
                   ref_mols:
                     type: string
@@ -114,8 +127,7 @@ jobs:
                     expression: '{{ proteinFieldName }}'
                     description: PDB file used
               service-execution:
-                service_ref: 'https://discourse.squonk.it/t/job-fragment_network_merges/110' #TODO: Check this
-              derived-from: fragments
+                service_ref: 'https://discourse.squonk.it/t/job-fragment_network_merges/110' #TODO: Remove in the future
       options:
         type: object
         required:
@@ -140,34 +152,17 @@ jobs:
             title: Use this value for the proteinFieldName (if not specified the file name is used)
             type: string
     tests:
-      simple-execution-sdf:
-        inputs:
-          fragments:
-          - data/mpro_hits_3.sdf
-          - data/mpro_hits_2.sdf
-          protein:
-          - data/Mpro-x1249_0A_apo-desolv.pdb
-          - data/Mpro-x1249_0A_apo-desolv.pdb
-        options:
-          outfile: merges.sdf
-        checks:
-          exitCode: 0
-          outputs:
-          - name: merges.sdf
-            checks:
-            - exists: true
       simple-execution-mols:
         inputs:
           fragments:
           - data/Mpro-x0072_0A.mol
           - data/Mpro-x0104_0A.mol
           - data/Mpro-x0107_0A.mol
-          protein: data/Mpro-x1249_0A_apo-desolv.pdb
+          proteins:
+          -  data/Mpro-x1249_0A_apo-desolv.pdb
+          - data/Mpro-x1249_0A_apo-desolv.pdb
         options:
           outfile: merges.sdf
-          count: 1
-          minNum: 2
-          maxNum: 2
         checks:
           exitCode: 0
           outputs:

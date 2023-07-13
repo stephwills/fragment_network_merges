@@ -13,7 +13,6 @@ from typing import Tuple
 import pyrosetta
 from filter.config_filter import config_filter
 from filter.generic_filter import Filter_generic
-from fragmenstein import Victor
 from pebble import ProcessPool
 from rdkit import Chem
 from rdkit.Chem import rdmolfiles
@@ -79,8 +78,11 @@ class FragmensteinFilter(Filter_generic):
         if not os.path.exists(output_subdir):
             os.mkdir(output_subdir)
 
+        workdir_files = [json_file, mol_file, holo_file]
         unmin_holo_file = os.path.join(merge_dir, f"{name}.holo_unminimised.pdb")
-        workdir_files = [json_file, mol_file, holo_file, unmin_holo_file]
+        if not os.path.isfile(unmin_holo_file):
+            unmin_holo_file = os.path.join(merge_dir, f"{name}.holo_minimised.pdb") #This is a dirty patch to avoid using rosetta.
+        workdir_files += [unmin_holo_file]
         outputdir_files = [
             os.path.join(output_subdir, os.path.basename(f)) for f in workdir_files
         ]
@@ -171,15 +173,22 @@ class FragmensteinFilter(Filter_generic):
             fragments_fnames = [self.fragmentA, self.fragmentB]
             hits = [Chem.MolFromMolFile(frag) for frag in fragments_fnames]
 
+            if config_filter.USE_FRAGMENSTEIN_WICTOR:
+                from fragmenstein import Wictor as Victor
+                deltaG_THR = 45
+            else:
+                from fragmenstein import Victor
+                deltaG_THR = 0
+
+
             # set the output directory
             Victor.work_path = self.work_pair_dir
 
             try:
+                #TODO: Change Victor to wictor
                 # set up Victor and place the smiles
                 v = Victor(hits=hits, pdb_filename=self.proteinA, covalent_resi=residue)
-                v.place(
-                    smiles=smi, long_name=name
-                )  # 'long_name' used to name the files
+                v.place(smi, name)  # 'long_name' used to name the files
             except Exception as e:
                 # if Fragmenstein fails, record the error and return filter fail
                 print(f"Fragmenstein failed for {name}: {str(e)}")
@@ -196,16 +205,16 @@ class FragmensteinFilter(Filter_generic):
 
         if data:
             # retrieve the energy of the bound and unbound molecules and the comRMSD
-            G_bound = data["Energy"]["ligand_ref2015"]["total_score"]  # energy bound
-            G_unbound = data["Energy"]["unbound_ref2015"]["total_score"]  # unbound
-            deltaG = G_bound - G_unbound  # calculate energy difference
-            comRMSD = data["mRMSD"]  # RMSD between two fragments and merge
+            # G_bound = data["Energy"]["ligand_ref2015"]["total_score"]  # energy bound
+            # G_unbound = data["Energy"]["unbound_ref2015"]["total_score"]  # unbound
+            deltaG = v.ddG  # calculate energy difference
+            comRMSD = v.mrmsd #data["mRMSD"]  # RMSD between two fragments and merge
+            if not isinstance(comRMSD, float):
+                comRMSD = comRMSD.mrmsd
             # print(deltaG, comRMSD)
+
             # get number of fragments used for placement of SMILES
-            regarded = 0
-            for rmsd in data["RMSDs"]:
-                if rmsd:
-                    regarded += 1
+            regarded = len(v.monster.matched)
 
             # get other files
             mol_file = os.path.join(merge_dir, f"{name}.minimised.mol")
@@ -213,7 +222,7 @@ class FragmensteinFilter(Filter_generic):
             minimised_mol = rdmolfiles.MolFromMolFile(mol_file)
 
             # only keep molecules where both fragments used in placement, -ΔΔG and comRMSD < threshold
-            if (regarded == 2) & (deltaG < 0) & (comRMSD <= comRMSD_threshold):
+            if (regarded == 2) & (deltaG < deltaG_THR) & (comRMSD <= comRMSD_threshold):
                 result = True
                 # move the fragmenstein files to the output directory
                 self._copy_files(name, merge_dir, json_file, mol_file, holo_file)

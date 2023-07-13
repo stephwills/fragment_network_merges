@@ -208,7 +208,8 @@ class MergerFinder_neo4j(MergerFinder_generic):
             else:
                 password = config_merge.NEO4J_PASS
             self._driver = GraphDatabase.driver(
-                "bolt://localhost:7687", auth=(config_merge.NEO4J_USER, password)
+                config_merge.NEO4J_URI,# "bolt://localhost:7687",
+                auth=(config_merge.NEO4J_USER, password)
             )
         return self._driver
 

@@ -265,9 +265,11 @@ class FilterPipeline:
 
             for step in self.score_steps:
                 module = config_filter.PIPELINE_DICT[step]  # retrieve module name
+                print(module)
                 cls = getattr(
                     importlib.import_module(module), step
                 )  # retrieve the class
+                print(cls)
                 score = cls(
                     self.smis,
                     self.synthons,
@@ -379,36 +381,32 @@ def parse_args(args):
     )
     return parser.parse_args(args)
 
-
-def main():
-    args = parse_args(sys.argv[1:])
-    fA = args.fragmentA
-    fB = args.fragmentB
+def run_filter_pipeline(fA, fB, target, merge_file, working_dir, output_dir, sim_search=False):
     merge = fA + "-" + fB
     merge = merge.replace("_", "-")
-    merge_dir = create_directories(args.target, merge, args.working_dir, args.output_dir)
+    merge_dir = create_directories(target, merge, working_dir, output_dir)
 
     # open json file containing merges
-    if not args.sim_search:
-        merges_dict = load_json(args.merge_file)
+    if not sim_search:
+        merges_dict = load_json(merge_file)
         synthons, smiles = get_merges(merges_dict)
     else:
-        smiles = load_json(args.merge_file)
+        smiles = load_json(merge_file)
         synthons = None
     print("Number of smiles: %d" % len(smiles))
 
     # load fragments and proteins
     fragmentA = get_mol(
-        args.target, fA, fragalysis_dir=config_filter.FRAGALYSIS_DATA_DIR
+        target, fA, fragalysis_dir=config_filter.FRAGALYSIS_DATA_DIR
     )
     fragmentB = get_mol(
-        args.target, fB, fragalysis_dir=config_filter.FRAGALYSIS_DATA_DIR
+        target, fB, fragalysis_dir=config_filter.FRAGALYSIS_DATA_DIR
     )
     proteinA = get_protein(
-        args.target, fA, fragalysis_dir=config_filter.FRAGALYSIS_DATA_DIR
+        target, fA, fragalysis_dir=config_filter.FRAGALYSIS_DATA_DIR
     )
     proteinB = get_protein(
-        args.target, fB, fragalysis_dir=config_filter.FRAGALYSIS_DATA_DIR
+        target, fB, fragalysis_dir=config_filter.FRAGALYSIS_DATA_DIR
     )
     filter_steps = config_filter.FILTER_PIPELINE
     score_steps = config_filter.SCORING_PIPELINE
@@ -424,10 +422,10 @@ def main():
         proteinB,
         filter_steps,
         score_steps,
-        args.target,
+        target,
         merge_dir,
-        args.working_dir,
-        args.output_dir,
+        working_dir,
+        output_dir,
     )
     pipeline.check_run()
     pipeline.execute_pipeline()
@@ -436,13 +434,79 @@ def main():
 
     # save in json files
     filtered_fname = merge + "_filtered.json"
-    filtered_fpath = os.path.join(args.output_dir, args.target, merge, filtered_fname)
+    filtered_fpath = os.path.join(output_dir, target, merge, filtered_fname)
 
     if not os.path.exists(filtered_fpath):
         with open(filtered_fpath, "w") as f:
             json.dump(results, f)
 
     shutil.rmtree(merge_dir)
+
+
+def main():
+    args = parse_args(sys.argv[1:])
+    run_filter_pipeline(**vars(args))
+    # fA = args.fragmentA
+    # fB = args.fragmentB
+    # merge = fA + "-" + fB
+    # merge = merge.replace("_", "-")
+    # merge_dir = create_directories(args.target, merge, args.working_dir, args.output_dir)
+    #
+    # # open json file containing merges
+    # if not args.sim_search:
+    #     merges_dict = load_json(args.merge_file)
+    #     synthons, smiles = get_merges(merges_dict)
+    # else:
+    #     smiles = load_json(args.merge_file)
+    #     synthons = None
+    # print("Number of smiles: %d" % len(smiles))
+    #
+    # # load fragments and proteins
+    # fragmentA = get_mol(
+    #     args.target, fA, fragalysis_dir=config_filter.FRAGALYSIS_DATA_DIR
+    # )
+    # fragmentB = get_mol(
+    #     args.target, fB, fragalysis_dir=config_filter.FRAGALYSIS_DATA_DIR
+    # )
+    # proteinA = get_protein(
+    #     args.target, fA, fragalysis_dir=config_filter.FRAGALYSIS_DATA_DIR
+    # )
+    # proteinB = get_protein(
+    #     args.target, fB, fragalysis_dir=config_filter.FRAGALYSIS_DATA_DIR
+    # )
+    # filter_steps = config_filter.FILTER_PIPELINE
+    # score_steps = config_filter.SCORING_PIPELINE
+    #
+    # # execute the pipeline
+    # pipeline = FilterPipeline(
+    #     merge,
+    #     smiles,
+    #     synthons,  # None if sim search data
+    #     fragmentA,
+    #     fragmentB,
+    #     proteinA,
+    #     proteinB,
+    #     filter_steps,
+    #     score_steps,
+    #     args.target,
+    #     merge_dir,
+    #     args.working_dir,
+    #     args.output_dir,
+    # )
+    # pipeline.check_run()
+    # pipeline.execute_pipeline()
+    # print(f"{len(pipeline.smis)} mols after filtering.")
+    # results, _ = pipeline.return_results()
+    #
+    # # save in json files
+    # filtered_fname = merge + "_filtered.json"
+    # filtered_fpath = os.path.join(args.output_dir, args.target, merge, filtered_fname)
+    #
+    # if not os.path.exists(filtered_fpath):
+    #     with open(filtered_fpath, "w") as f:
+    #         json.dump(results, f)
+    #
+    # shutil.rmtree(merge_dir)
 
 
 if __name__ == "__main__":
