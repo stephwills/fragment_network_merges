@@ -12,4 +12,4 @@ kind-version: '2021.1'
 # which must use the extension .yaml or .yml extension,
 # must be located in the same directory as the manifest.
 job-definition-files:
-- fragment_network_merges.yaml
+- fragment-network-merges.yaml

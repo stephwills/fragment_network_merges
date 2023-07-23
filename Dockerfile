@@ -14,11 +14,12 @@ COPY squonkScripts ./squonkScripts/
 COPY utils ./utils/
 COPY setup.py ./
 COPY README.md ./
+# COPY data ./
 
 RUN pwd
 RUN ls
 RUN pip install .
 
-ENV NEO4J_URI="bolt://graph.graph-stfc:7687"
 ENV N_CPUS_FILTER_PAIR=1
 ENV USE_FRAGMENSTEIN_WICTOR=1
+# ENV NEO4J_URI="bolt://graph.graph-stfc:7687"

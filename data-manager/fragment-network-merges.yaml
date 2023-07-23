@@ -4,11 +4,21 @@
 kind: DataManagerJobDefinition
 kind-version: '2021.1'
 name: Fragment network jobs for fragment merging
-collection: fragment_network
+collection: fragment-network
+
+test-groups:
+- name: fragnet-search
+  compose:
+    file: docker-compose-fns.yaml
+    delay-seconds: 10
+  environment:
+  - NEO4J_USERNAME: neo4j
+  - NEO4J_PASSWORD: test123
+  - NEO4J_SERVER: bolt://graph:7687
 
 jobs:
 
-  fragment_network-merge:
+  fragment-network-merge:
     name: Combine pairs of fragments using Fragment network
     description: >-
       Given multiple fragment molecules generate pairs of these and for each pair generate a merged molecule
@@ -16,7 +26,7 @@ jobs:
     version: '1.0.0'
     category: comp chem
     keywords:
-    - fragment_network
+    - fragment-network
     - fbdd
     doc-url: fragment_network_merges/fragment_network_merges.md
     image:
@@ -44,11 +54,11 @@ jobs:
             key: server
     command: >-
       /code/squonkScripts/main.py
-      --fragments '{{ fragments|join(",") }}'
-      --proteins '{{ proteins|join(",") }}'
+      --fragments {% for frag in fragments %} '{{ frag.split(",")[0] }}'{% endfor %}
+      --proteins {% for frag in fragments %} '{{ frag.split(",")[1] }}'{% endfor %}
       --outfile '{{ outfile }}'
-      --ref_mols_prop ref_mols
-      {% if fragIdField %}--frag_id_field '{{ fragIdField }}'{% endif %}
+      --fragIdFieldName ref_mols
+      {% if fragIdField %}--fragIdFieldValue '{{ fragIdField }}'{% endif %}
       {% if smilesFieldName %}--smiles_prop '{{ smilesFieldName }}'{% endif %}
       {% if proteinFieldName %}--protein_prop_name '{{ proteinFieldName }}'{% endif %}
       {% if proteinFieldValue %}--protein_prop_value '{{ proteinFieldValue }}'{% endif %}
@@ -56,7 +66,6 @@ jobs:
       order:
         inputs:
         - fragments
-        - proteins
         options:
         - outfile
         - fragIdField
@@ -67,7 +76,6 @@ jobs:
         type: object
         required:
         - fragments
-        - proteins
         properties:
           fragments:
             title: Fragment molecules
@@ -75,12 +83,6 @@ jobs:
             mime-types:
             - chemical/x-mdl-molfile
             - chemical/x-mdl-sdfile
-            type: file
-          proteins:
-            title: PDB file for protein
-            multiple: true
-            mime-types:
-            - chemical/x-pdb
             type: file
       outputs:
         type: object
@@ -152,15 +154,18 @@ jobs:
             title: Use this value for the proteinFieldName (if not specified the file name is used)
             type: string
     tests:
-      simple-execution-mols:
+      simple-expand:
+        run-groups:
+        - name: fragnet-search
+          ordinal: 1
+        environment:
+        - NEO4J_USERNAME
+        - NEO4J_PASSWORD
+        - NEO4J_SERVER
         inputs:
           fragments:
-          - data/Mpro-x0072_0A.mol
-          - data/Mpro-x0104_0A.mol
-          - data/Mpro-x0107_0A.mol
-          proteins:
-          -  data/Mpro-x1249_0A_apo-desolv.pdb
-          - data/Mpro-x1249_0A_apo-desolv.pdb
+          - data/nsp13-x0176_0B.mol,data/nsp13-x0176_0B_apo-desolv.pdb
+          - data/nsp13-x0246_0B.mol,data/nsp13-x0246_0B_apo-desolv.pdb
         options:
           outfile: merges.sdf
         checks:
@@ -169,3 +174,23 @@ jobs:
           - name: merges.sdf
             checks:
             - exists: true
+#           - lineCount: 1180
+
+
+#      simple-execution-mols:
+#        inputs:
+#          fragments:
+#          - data/Mpro-x0072_0A.mol
+#          - data/Mpro-x0104_0A.mol
+#          - data/Mpro-x0107_0A.mol
+#          proteins:
+#          -  data/Mpro-x1249_0A_apo-desolv.pdb
+#          - data/Mpro-x1249_0A_apo-desolv.pdb
+#        options:
+#          outfile: merges.sdf
+#        checks:
+#          exitCode: 0
+#          outputs:
+#          - name: merges.sdf
+#            checks:
+#            - exists: true

@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 import glob
 import json
 import os
@@ -8,22 +9,33 @@ from typing import List, Optional
 from rdkit import Chem
 
 
-def main(fragments:List[str], proteins:List[str], outfile:str, fragIdField:str, smilesFieldName:str,
-         proteinFieldName:str, proteinFieldValue:Optional[str]):
+def main(fragments:Optional[List[str]], proteins:Optional[List[str]],
+         outfile:str, fragIdFieldName:Optional[str], fragIdFieldValue:Optional[str], smilesFieldName:Optional[str],
+         proteinFieldName:Optional[str], proteinFieldValue:Optional[str]):
     """
 
     :param fragments:
     :param proteins:
     :param outfile:
-    :param fragIdField:
+    :param fragIdFieldName:
+    :param fragIdFieldValue:
     :param smilesFieldName:
     :param proteinFieldName:
     :param proteinFieldValue:
 
     """
+    from merge.config_merge import config_merge
+    from filter.config_filter import config_filter
 
-    os.environ["NEO4J_USER"] = os.environ.get("NEO4J_USERNAME", os.environ.get("NEO4J_USER"))
-    os.environ["NEO4J_PASS"] = os.environ.get("NEO4J_PASSWORD", os.environ.get("NEO4J_PASS"))
+    os.environ["NEO4J_USER"] = os.environ.get("NEO4J_USERNAME", os.environ.get("NEO4J_USER", config_merge.NEO4J_USER))
+    os.environ["NEO4J_PASS"] = os.environ.get("NEO4J_PASSWORD", os.environ.get("NEO4J_PASS", config_merge.NEO4J_PASS))
+    os.environ["NEO4J_URI"] = os.environ.get("NEO4J_URI", os.environ.get("NEO4J_SERVER", config_merge.NEO4J_URI))
+
+    # if fragment_protein is not None:
+    #     assert proteins is None and fragments is None
+    #     fragments, proteins = zip(*fragment_protein)
+    #     fragments = list(fragments)
+    #     proteins = list(proteins)
 
     nprots = len(proteins)
     nfrags = len(fragments)
@@ -69,8 +81,7 @@ def main(fragments:List[str], proteins:List[str], outfile:str, fragIdField:str, 
         os.makedirs(output_dir_query)
         wdir = os.path.join(tmpdir, "working_dir")
         os.makedirs(wdir)
-        from merge.config_merge import config_merge
-        from filter.config_filter import config_filter
+
         config_merge.FRAGALYSIS_DATA_DIR = tmpdir
         config_filter.FRAGALYSIS_DATA_DIR = tmpdir
         config_filter.N_CPUS_FILTER_PAIR= os.environ.get("N_CPUS_FILTER_PAIR", 1) #TODO: Tim, how to ask for a given number of cpus?
@@ -141,13 +152,17 @@ def main(fragments:List[str], proteins:List[str], outfile:str, fragIdField:str, 
                     return out
 
                 frags = replace_even_dashes(info["pair"])
-                mol.SetProp(fragIdField, frags)
-                mol.SetProp(smilesFieldName, Chem.MolToSmiles(mol))
+                if fragIdFieldName:
+                    mol.SetProp(fragIdFieldName, frags)
+                if smilesFieldName:
+                    mol.SetProp(smilesFieldName, Chem.MolToSmiles(mol))
                 if "PlipIfpScore" in info:
                     mol.SetDoubleProp("PlipIfpScore", info["PlipIfpScore"])
                 mol.SetDoubleProp("SuCOSScore", info["SuCOSScore"])
-                _proteinFieldValue = proteinFieldValue if nprots == 1 else frags.split(",")[0]
-                mol.SetProp(proteinFieldName, _proteinFieldValue)  # TODO: Check if this is what we want
+                if proteinFieldValue:
+                    _proteinFieldValue = proteinFieldValue if nprots == 1 else frags.split(",")[0]
+                    if proteinFieldName:
+                        mol.SetProp(proteinFieldName, _proteinFieldValue)  # TODO: Check if this is what we want
                 # # Add the molecule to the list
                 mols.append(mol)
         print(f"Found {len(mols)} mols. Saved at {outfile}")
