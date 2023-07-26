@@ -48,6 +48,7 @@ def get_smiles(target, fragment, fragalysis_dir=config_merge.FRAGALYSIS_DATA_DIR
         print("SMILES file cannot be found for that fragment.")
         print("Ensure files are saved correctly in Fragalysis format.")
         print(e)
+        raise e
 
     # smiles does not necessarily match what is in the network
     # get canonical smiles by converting to mol and converting back to smiles

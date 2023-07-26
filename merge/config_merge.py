@@ -1,9 +1,8 @@
 import os
 
-from utils.singleton import Singleton
+from common.configBase import ConfigBase
 
-
-class Config(metaclass=Singleton):
+class Config(ConfigBase):
     CONFIG_DICT = dict(
         FRAGALYSIS_DATA_DIR="/home/swills/Oxford/data/Fragalysis",
         WORKING_DIR=os.path.join(os.getcwd(), "data"),
@@ -29,30 +28,6 @@ class Config(metaclass=Singleton):
         NUM_ATOMS_NOT_MCS=3,  # number of atoms not included in MCS between fragments when checking for too similar pairs
         MCS_RMSD_THRESHOLD=2,  # threshold for ruling out fragment pairs that are too similar (RMSD between MCS atoms)
     )
-
-    @classmethod
-    def get(cls, key):
-        val = os.environ.get(key, None)
-        if val:
-            return val
-        else:
-            return cls.CONFIG_DICT[key]
-
-    # this method will allow instances to access config properties as obj.PROPERTY; useful for subclassing
-    def __getattr__(self, key):
-        if key in self.__dict__:
-            val = self.__dict__[key]
-            return val
-        else:
-            return self.get(key)
-
-    def __setattr__(self, key, value):
-        if value is not None:
-            super(Config, self).__setattr__(key, value)
-        # self.CONFIG_DICT[key] = value
-
-    def __init__(self):
-        pass
 
 
 config_merge = Config()

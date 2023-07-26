@@ -59,6 +59,7 @@ def main(fragments:Optional[List[str]], proteins:Optional[List[str]],
             fragwdir = os.path.join(targetName, "aligned", dirname)
             os.makedirs(fragwdir)
             fragFname = os.path.join(fragwdir, dirname+".mol")
+            frag = os.path.join(cwdir, frag)
             if frag.endswith(".sdf"):
                 sup = Chem.SDMolSupplier(frag)
                 mol = sup[0]
@@ -72,7 +73,8 @@ def main(fragments:Optional[List[str]], proteins:Optional[List[str]],
             with open(smilesFname, "w") as f:
                 f.write(Chem.MolToSmiles(mol, isomericSmiles=False))
             prot = proteins[i]
-            apo_desolv_name =  os.path.join(fragwdir, dirname+"_apo-desolv.pdb")
+            apo_desolv_name = os.path.join(fragwdir, dirname+"_apo-desolv.pdb")
+            prot = os.path.join(cwdir, prot)
             shutil.copyfile(prot, apo_desolv_name)
         print(f"Input data prepared at {tmpdir}")
 
@@ -84,7 +86,7 @@ def main(fragments:Optional[List[str]], proteins:Optional[List[str]],
 
         config_merge.FRAGALYSIS_DATA_DIR = tmpdir
         config_filter.FRAGALYSIS_DATA_DIR = tmpdir
-        config_filter.N_CPUS_FILTER_PAIR= os.environ.get("N_CPUS_FILTER_PAIR", 1) #TODO: Tim, how to ask for a given number of cpus?
+        config_filter.N_CPUS_FILTER_PAIR= int(os.environ.get("N_CPUS_FILTER_PAIR", 1)) #TODO: Tim, how to ask for a given number of cpus?
         config_filter.SCORING_PIPELINE = [ "SuCOSScore"] #Not working "IfpScore"
 
         from merge.query import run_query

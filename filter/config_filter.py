@@ -1,9 +1,9 @@
 import os
 
-from utils.singleton import Singleton
+from common.configBase import ConfigBase
 
 
-class Config_filter(metaclass=Singleton):
+class Config_filter(ConfigBase):
     CONFIG_DICT = dict(
         FRAGALYSIS_DATA_DIR="/home/swills/Oxford/data/Fragalysis",
         OUTPUT_DIR="/home/swills/Oxford/fragment_network/fragment_network_merges/tests/test_output",
@@ -46,30 +46,6 @@ class Config_filter(metaclass=Singleton):
         PLIP_SCORE_THRESHOLD=0.5,  # plip_ifp_score.py; proportion of bonds maintained
         USE_FRAGMENSTEIN_WICTOR=True #instead of victor
     )
-
-    @classmethod
-    def get(cls, key):
-        val = os.environ.get(key, None)
-        if val:
-            return val
-        else:
-            return cls.CONFIG_DICT[key]
-
-    # this method will allow instances to access config properties as obj.PROPERTY; useful for subclassing
-    def __getattr__(self, key):
-        if key in self.__dict__:
-            val = self.__dict__[key]
-            return val
-        else:
-            return self.get(key)
-
-    def __setattr__(self, key, value):
-        if value is not None:
-            super(Config_filter, self).__setattr__(key, value)
-        # self.CONFIG_DICT[key] = value
-
-    def __init__(self):
-        pass
 
 
 config_filter = Config_filter()
