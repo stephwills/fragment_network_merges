@@ -5,9 +5,9 @@ import unittest
 from unittest.mock import patch
 
 import numpy as np
-from filter.overlap_filter import OverlapFilter, parse_args, main
+from fragment_network_merges.filter import OverlapFilter, parse_args, main
 from rdkit import Chem
-from utils.utils import get_protein
+from fragment_network_merges.utils import get_protein
 
 frag_dir = os.path.join("tests", "test_Fragalysis")
 test_sdf = os.path.join("tests", "test_data", "overlap_filter_mols.sdf")

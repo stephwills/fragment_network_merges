@@ -53,7 +53,7 @@ jobs:
             name: im-fragnet-graph
             key: server
     command: >-
-      /code/squonkScripts/main.py
+      python -m fragment_network_merges.squonkScripts.main
       --fragments {% for frag in fragments %} '{{ frag.split(",")[0] }}'{% endfor %}
       --proteins {% for frag in fragments %} '{{ frag.split(",")[1] }}'{% endfor %}
       --outfile '{{ outfile }}'

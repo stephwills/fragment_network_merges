@@ -2,8 +2,8 @@
 import os
 import unittest
 
-from merge.find_merges_neo4j import MergerFinder_neo4j
-from utils.utils import get_mol
+from fragment_network_merges.merge.find_merges_neo4j import MergerFinder_neo4j
+from fragment_network_merges.utils import get_mol
 from rdkit import Chem
 
 merger = MergerFinder_neo4j()

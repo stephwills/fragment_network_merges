@@ -4,7 +4,7 @@ import os
 import unittest
 from unittest.mock import patch
 
-from filter.descriptor_filter import DescriptorFilter, parse_args, main
+from fragment_network_merges.filter.descriptor_filter import DescriptorFilter, main
 
 test_sdf = os.path.join("tests", "test_data", "descriptor_filter_mols.sdf")
 output_sdf = os.path.join("tests", "test_data", "test_descriptor_output.sdf")

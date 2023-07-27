@@ -5,8 +5,8 @@ import shutil
 import unittest
 from unittest.mock import patch
 
-from filter.fragmenstein_filter import FragmensteinFilter, main
-from utils.utils import get_mol, get_protein
+from fragment_network_merges.filter import FragmensteinFilter, main
+from fragment_network_merges.utils import get_mol, get_protein
 
 
 def remove_files(dir):

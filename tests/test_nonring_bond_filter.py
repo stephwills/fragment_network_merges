@@ -4,7 +4,7 @@ import os
 import unittest
 from unittest.mock import patch
 
-from filter.nonring_bond_filter import NonringBondFilter, main
+from fragment_network_merges.filter import NonringBondFilter, main
 
 test_sdf = os.path.join('tests', 'test_data', 'nonring_bond_filter_mols.sdf')
 output_sdf = os.path.join("tests", "test_data", "test_nonring_bond_filter_output.sdf")

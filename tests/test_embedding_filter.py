@@ -7,11 +7,11 @@ import unittest
 from unittest.mock import patch
 
 import numpy as np
-from filter.embedding_filter import EmbeddingFilter, main
-from merge.preprocessing import get_mol
+from fragment_network_merges.filter import EmbeddingFilter, main
+from fragment_network_merges.merge import get_mol
 from rdkit import Chem
-from utils.filter_utils import calc_unconstrained_energy, get_mcs, remove_xe
-from utils.utils import get_distance
+from fragment_network_merges.utils.filter_utils import calc_unconstrained_energy, get_mcs, remove_xe
+from fragment_network_merges.utils import get_distance
 
 fragalysis_dir = "tests/test_Fragalysis"
 filter = EmbeddingFilter()

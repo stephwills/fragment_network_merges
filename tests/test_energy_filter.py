@@ -5,7 +5,7 @@ import unittest
 from unittest.mock import patch
 from rdkit import Chem
 
-from filter.energy_filter import EnergyFilter, main
+from fragment_network_merges.filter import EnergyFilter, main
 
 test_pass_sdf = os.path.join("tests", "test_data", "energy_filter_pass_mols.sdf")
 test_fail_sdf = os.path.join("tests", "test_data", "energy_filter_fail_mols.sdf")

@@ -4,8 +4,8 @@ import os
 import unittest
 from unittest.mock import patch
 
-from filter.expansion_filter import ExpansionFilter, main
-from merge.preprocessing import get_mol
+from fragment_network_merges.filter import ExpansionFilter, main
+from fragment_network_merges.merge import get_mol
 
 fragalysis_dir = "tests/test_Fragalysis"
 fragmentA = get_mol("nsp13", "x0276_0B", True)

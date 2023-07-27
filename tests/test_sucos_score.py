@@ -4,8 +4,8 @@ import os
 import unittest
 from unittest.mock import patch
 
-from filter.sucos_score import SuCOSScore, main
-from utils.utils import get_mol
+from fragment_network_merges.filter import SuCOSScore, main
+from fragment_network_merges.utils import get_mol
 
 
 class TestSuCOSScore(unittest.TestCase):

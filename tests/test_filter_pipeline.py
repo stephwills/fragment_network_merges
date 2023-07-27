@@ -5,10 +5,10 @@ import os
 import shutil
 import unittest
 
-from filter.config_filter import config_filter
-from filter.filter_pipeline import (FilterPipeline, create_directories,
-                                    parse_args)
-from utils.utils import get_merges, get_mol, get_protein, load_json
+from fragment_network_merges.filter import config_filter
+from fragment_network_merges.filter import (FilterPipeline, create_directories,
+                                            parse_args)
+from fragment_network_merges.utils import get_merges, get_mol, get_protein, load_json
 
 filtered_path = "tests/test_output/x0034_0B-x0311_0B_filtered.json"
 failed_path = "tests/test_output/x0034_0B-x0311_0B_failures.json"

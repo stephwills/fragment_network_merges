@@ -5,8 +5,8 @@ import shutil
 import unittest
 from unittest.mock import patch
 
-from filter.plip_ifp_score import PlipIfpScore, main
-from utils.utils import get_mol
+from fragment_network_merges.filter.plip_ifp_score import PlipIfpScore, main
+from fragment_network_merges.utils import get_mol
 
 
 def delete_files(dir):

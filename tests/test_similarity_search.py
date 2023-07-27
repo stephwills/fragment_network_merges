@@ -2,12 +2,10 @@ import json
 import os
 import tempfile
 import unittest
-from io import StringIO
 
 import numpy as np
-from rdkit import DataStructs
 
-from similaritySearch.similarity_searcher_search_onePartition import search_smi_list
+from fragment_network_merges.similaritySearch import search_smi_list
 
 
 class TestSimilaritySearch(unittest.TestCase):
@@ -18,8 +16,8 @@ class TestSimilaritySearch(unittest.TestCase):
     def test_morgan_fp(self):
         """Tests the function calculate distances correctly"""
         smi = "CCCOC"
-        from similaritySearch.compute_fingerprints import get_fingerprint
-        import similaritySearch.similaritySearchConfig as config
+        from fragment_network_merges.similaritySearch import get_fingerprint
+        import fragment_network_merges.similaritySearch.similaritySearchConfig as config
         config.FINGERPRINT_TYPE="morgan"
         fp = get_fingerprint(smi)
         print(fp)
@@ -27,8 +25,8 @@ class TestSimilaritySearch(unittest.TestCase):
     def test_ph4_fp(self):
         """Tests the function calculate distances correctly"""
         smi = "c1ccccc1C(=O)C(=O)c2ccccc2"
-        from similaritySearch.compute_fingerprints import get_fingerprint
-        import similaritySearch.similaritySearchConfig as config
+        from fragment_network_merges.similaritySearch import get_fingerprint
+        import fragment_network_merges.similaritySearch.similaritySearchConfig as config
         config.FINGERPRINT_TYPE="pharmacophore"
         fp = get_fingerprint(smi)
         print(fp)
@@ -40,8 +38,8 @@ class TestSimilaritySearch(unittest.TestCase):
             fps = json.load(f)
         print(fps)
 
-        from similaritySearch.compute_fingerprints import get_fingerPrint_as_npBool
-        import similaritySearch.similaritySearchConfig as config
+        from fragment_network_merges.similaritySearch import get_fingerPrint_as_npBool
+        import fragment_network_merges.similaritySearch.similaritySearchConfig as config
 
         config.FINGERPRINT_TYPE = "morgan"
         # database_dir = os.path.expanduser("~/oxford/enamine/fingerprints_db")
@@ -52,7 +50,7 @@ class TestSimilaritySearch(unittest.TestCase):
             query_fps[i, fps[name]] = 1
 
         smi = "COCCNC(=O)N1CCN(C(=O)c2cccs2)CC1C" #"COCCNC(=O)N1CCN(C(=O)c2ccco2)CC1" #"CC(C)(C)OC(=O)NC=1C=CC=C(CNC(=O)N2CCN(CC2)C(=O)C3=CC=CO3)C1"
-        from similaritySearch.compute_metrics import fraction_of_query_on_bits
+        from fragment_network_merges.similaritySearch.compute_metrics import fraction_of_query_on_bits
         target_fps = get_fingerPrint_as_npBool(smi)
         for i, name in enumerate(dataset_names):
             frac = fraction_of_query_on_bits(query_fps[i,:], target_fps)
@@ -93,7 +91,7 @@ class TestSimilaritySearch(unittest.TestCase):
 
     def test_numba_logexpsum(self):
         in_ = np.random.rand(10, 8)
-        from similaritySearch.compute_metrics import numba_logsumexp_stable
+        from fragment_network_merges.similaritySearch.compute_metrics import numba_logsumexp_stable
         out = numba_logsumexp_stable(in_)
         from scipy.special import logsumexp
         out2 = logsumexp(in_, axis=1, return_sign=False)
@@ -112,9 +110,9 @@ class TestSimilaritySearch(unittest.TestCase):
                 self.assertAlmostEqual(data["COC(C)CS(=O)(=O)NCC1=C(C)C(C)=C(C)C(C)=C1C"][0][0], 1.0)
 
     def _test_create_db(self): # _ to skip this test
-        import similaritySearch.similaritySearchConfig as config
+        import fragment_network_merges.similaritySearch.similaritySearchConfig as config
         config.FINGERPRINT_TYPE = "pharmacophore" #"morgan"
-        from similaritySearch.create_db import create_db_from_multiple_files
+        from fragment_network_merges.similaritySearch import create_db_from_multiple_files
         cxsmiles_dir = os.path.expanduser("~/oxford/enamine/cxsmiles")
         fp_outdir = self.DB_DIR
         create_db_from_multiple_files(cxsmiles_dir, fp_outdir)

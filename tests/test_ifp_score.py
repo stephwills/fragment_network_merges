@@ -3,8 +3,8 @@
 import os
 import unittest
 
-from merge.preprocessing import get_mol, get_protein
-from filter.ifp_score import IfpScore
+from fragment_network_merges.merge import get_mol, get_protein
+from fragment_network_merges.filter import IfpScore
 
 smis = ['smi1', 'smi2', 'smi3']
 synthons = ['synthon1', 'synthon2', 'synthon3']

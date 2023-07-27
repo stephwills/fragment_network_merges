@@ -139,15 +139,15 @@ tests/test_output/*
 tests/test_working/*
 test.pdb
 notebooks/
-filter/place_simsearch.py
-merge/focused_query.py
+fragment_network_merges/filter/place_simsearch.py
+fragment_network_merges/merge/focused_query.py
 *docking_score.py
-filter/*_ss.py
+fragment_network_merges/filter/*_ss.py
 tests/*_ss.py
 archive/analysis/
 data_manager/
 archive/*
-utils/misc*
-utils/*analysis*
-filter/elaboratability_evaluation.py
+fragment_network_merges/utils/misc*
+fragment_network_merges/utils/*analysis*
+fragment_network_merges/filter/elaboratability_evaluation.py
 

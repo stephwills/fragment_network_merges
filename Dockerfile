@@ -8,13 +8,15 @@ RUN conda install -y -c conda-forge pymol-open-source plip openbabel neo4j-pytho
 RUN pip install pebble==4.6.3 argParseFromDoc==0.1
 RUN pip install joblib
 
-COPY merge ./merge/
-COPY filter ./filter/
-COPY squonkScripts ./squonkScripts/
-COPY utils ./utils/
-COPY setup.py ./
-COPY README.md ./
-
+#COPY merge ./merge/
+#COPY filter ./filter/
+#COPY squonkScripts ./squonkScripts/
+#COPY utils ./utils/
+#COPY setup.py ./
+#COPY README.md ./
+COPY . ./
+#COPY setup.py ./
+#COPY README.md ./
 
 RUN pwd
 RUN ls

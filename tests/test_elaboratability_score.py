@@ -3,8 +3,7 @@
 import os
 import unittest
 
-from filter.elaboratability_score import ElaboratabilityScore
-from utils.utils import get_mol
+from fragment_network_merges.filter import ElaboratabilityScore
 from rdkit import Chem
 
 
