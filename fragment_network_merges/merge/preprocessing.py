@@ -187,7 +187,8 @@ def check_similarity(mol1, mol2, num_atoms_not_mcs=config_merge.NUM_ATOMS_NOT_MC
         return True
 
 
-def check_too_similar(fragment_pairs, name_pairs, target, num_atoms_not_mcs=3, rmsd_threshold=2):
+def check_too_similar(fragment_pairs, name_pairs, target, num_atoms_not_mcs=config_merge.NUM_ATOMS_NOT_MCS,
+                      rmsd_threshold=config_merge.MCS_RMSD_THRESHOLD):
     filtered_fragment_pairs = []
     filtered_name_pairs = []
 
