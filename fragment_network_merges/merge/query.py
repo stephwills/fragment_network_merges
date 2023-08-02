@@ -4,9 +4,7 @@ import argparse
 from typing import Optional, List
 
 from fragment_network_merges.merge.config_merge import config_merge
-from fragment_network_merges.merge.find_merges import getFragmentNetworkSearcher
-from fragment_network_merges.merge.preprocessing import check_fragment_pairs, check_merges_run, check_too_similar
-from fragment_network_merges.utils.utils import get_smiles
+
 
 
 def preprocess_fragments(target, fragment_names, output_dir=None, remove_similar=False):
@@ -14,6 +12,11 @@ def preprocess_fragments(target, fragment_names, output_dir=None, remove_similar
     Preprocess the list of fragments and get all the possible fragment pairs
     to generate merges from.
     """
+    #Imports need to happen within the function so that config_merge can be updated
+    from fragment_network_merges.merge.find_merges import getFragmentNetworkSearcher
+    from fragment_network_merges.merge.preprocessing import check_fragment_pairs, check_merges_run, check_too_similar
+    from fragment_network_merges.utils.utils import get_smiles
+
     fragmentNetworkSearcher = getFragmentNetworkSearcher()
 
     # get all the smiles of the fragments
@@ -57,6 +60,9 @@ def run_query(fragments:List[str], target:str, output_dir:str, remove_similar_fr
 
     # run the database query; this will create json files containing the merges for each pair
     # in the output directory
+
+    #Imports need to happen within the function and after config_merge.XXXX=VALUE so that config_merge can be updated
+    from fragment_network_merges.merge.find_merges import getFragmentNetworkSearcher
     fragmentNetworkSearcher = getFragmentNetworkSearcher()
     fragmentNetworkSearcher.expand_fragmentA(
         name_pairs, target, output_dir=output_dir

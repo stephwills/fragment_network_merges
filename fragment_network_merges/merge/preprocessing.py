@@ -89,6 +89,7 @@ def check_fragment_pairs(
     # write fragment pairs list to json file
     if not os.path.exists(working_dir):
         os.mkdir(working_dir)
+    print(working_dir)
     filename = os.path.join(working_dir, f"{target}_pairs.json")
 
     # check if fragment pairs list exists for this target in the working directory

@@ -11,7 +11,7 @@ from rdkit import Chem
 
 def main(fragments:Optional[List[str]], proteins:Optional[List[str]],
          outfile:str, fragIdFieldName:Optional[str], fragIdFieldValue:Optional[str], smilesFieldName:Optional[str],
-         proteinFieldName:Optional[str], proteinFieldValue:Optional[str]):
+         proteinFieldName:Optional[str], proteinFieldValue:Optional[str], wdir:Optional[str]):
     """
 
     :param fragments:
@@ -22,10 +22,10 @@ def main(fragments:Optional[List[str]], proteins:Optional[List[str]],
     :param smilesFieldName:
     :param proteinFieldName:
     :param proteinFieldValue:
-
+    :param wdir:
     """
     from fragment_network_merges.merge.config_merge import config_merge
-    from fragment_network_merges.filter import config_filter
+    from fragment_network_merges.filter.config_filter import config_filter
 
     os.environ["NEO4J_USER"] = os.environ.get("NEO4J_USERNAME", os.environ.get("NEO4J_USER", config_merge.NEO4J_USER))
     os.environ["NEO4J_PASS"] = os.environ.get("NEO4J_PASSWORD", os.environ.get("NEO4J_PASS", config_merge.NEO4J_PASS))
@@ -48,16 +48,19 @@ def main(fragments:Optional[List[str]], proteins:Optional[List[str]],
 
     #1st, recreate old fragalysis stylestructure.
     with tempfile.TemporaryDirectory() as tmpdir:
+        if wdir is not None:
+            os.makedirs(wdir, exist_ok=True)
+            tmpdir = wdir
         cwdir = os.getcwd()
         os.chdir(tmpdir)
         targetName = os.path.basename(fragments[0].split("-")[0])
-        os.makedirs(os.path.join(targetName, "aligned"))
+        os.makedirs(os.path.join(targetName, "aligned"), exist_ok=True)
         for i, frag in enumerate(fragments):
             frag_noext = os.path.splitext(frag)[0]
             dirname = "_".join(os.path.basename(frag_noext).split("_")[:2])
             fragmentIds.append("_".join(dirname.split("-")[1:] ))
             fragwdir = os.path.join(targetName, "aligned", dirname)
-            os.makedirs(fragwdir)
+            os.makedirs(fragwdir, exist_ok=True)
             fragFname = os.path.join(fragwdir, dirname+".mol")
             frag = os.path.join(cwdir, frag)
             if frag.endswith(".sdf"):
@@ -80,9 +83,9 @@ def main(fragments:Optional[List[str]], proteins:Optional[List[str]],
 
         print("Launching queries")
         output_dir_query = os.path.join(tmpdir, "queries_output")
-        os.makedirs(output_dir_query)
+        os.makedirs(output_dir_query, exist_ok=True)
         wdir = os.path.join(tmpdir, "working_dir")
-        os.makedirs(wdir)
+        os.makedirs(wdir, exist_ok=True)
 
         config_merge.FRAGALYSIS_DATA_DIR = tmpdir
         config_filter.FRAGALYSIS_DATA_DIR = tmpdir
@@ -95,24 +98,27 @@ def main(fragments:Optional[List[str]], proteins:Optional[List[str]],
         print("Queries were executed!", output_dir_query, wdir)
         wdir = os.path.join(tmpdir, "working_dir_filter")
         output_dir_filter = os.path.join(tmpdir, "filter_output")
-        os.makedirs(wdir)
-        os.makedirs(output_dir_filter)
+        os.makedirs(wdir, exist_ok=True)
+        os.makedirs(output_dir_filter, exist_ok=True)
 
-        allPairsFname = os.path.join(tmpdir, "data", f"{targetName}_pairs.json")
+        allPairsFname = os.path.join(tmpdir, "working_dir", f"{targetName}_pairs.json")
         if os.path.exists(allPairsFname):
             with open(allPairsFname) as f:
                 all_pairs = json.load(f)
         else:
             all_pairs = []
+            print("No valid pairs were found!!")
+
         to_filter = []
         for pair in all_pairs:
             fname = os.path.join(output_dir_query, "_".join(pair)+".json")
             if os.path.isfile(fname):
                 to_filter.append(tuple(pair)+(fname,))
-        from fragment_network_merges.filter.filter_pipeline import run_filter_pipeline
 
+        from fragment_network_merges.filter.filter_pipeline import run_filter_pipeline
         for i, (fA,fB, merge_file) in enumerate(to_filter):
             print(f"Filtering {fA,fB}")
+            print("FRAGALYSIS_DATA_DIR", config_filter.FRAGALYSIS_DATA_DIR)
             run_filter_pipeline(fA, fB, targetName, merge_file, working_dir=wdir,
                                 output_dir=output_dir_filter, sim_search=False)
             print("Next pair!")
@@ -169,6 +175,7 @@ def main(fragments:Optional[List[str]], proteins:Optional[List[str]],
                 mols.append(mol)
         print(f"Found {len(mols)} mols. Saved at {outfile}")
         # Write all molecules to the .sdf file
+        os.chdir(cwdir)
         assert outfile
         writer = Chem.SDWriter(outfile)
         for mol in mols:

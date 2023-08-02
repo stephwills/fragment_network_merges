@@ -47,5 +47,6 @@ class Config_filter(ConfigBase):
         USE_FRAGMENSTEIN_WICTOR=True #instead of victor
     )
 
-
+    def __str__(self):
+        return str(self.CONFIG_DICT)
 config_filter = Config_filter()

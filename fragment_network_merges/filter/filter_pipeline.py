@@ -9,8 +9,6 @@ import time
 import tempfile
 
 from fragment_network_merges.filter.config_filter import config_filter
-from fragment_network_merges.utils.utils import load_json, get_merges, get_mol, get_protein
-
 
 def create_directories(
     target: str,
@@ -108,6 +106,8 @@ class FilterPipeline:
         """
         Check if any of the SMILES have already been run - this happens.
         """
+        from fragment_network_merges.utils.utils import load_json
+
         output_failed_fpath = os.path.join(
             self.pair_output_dir, f"{self.merge}_failures.json"
         )
@@ -382,6 +382,10 @@ def parse_args(args):
     return parser.parse_args(args)
 
 def run_filter_pipeline(fA, fB, target, merge_file, working_dir, output_dir, sim_search=False):
+
+    fragalysis_dir = config_filter.FRAGALYSIS_DATA_DIR
+    from fragment_network_merges.utils.utils import load_json, get_merges, get_mol, get_protein
+
     merge = fA + "-" + fB
     merge = merge.replace("_", "-")
     merge_dir = create_directories(target, merge, working_dir, output_dir)
@@ -397,16 +401,16 @@ def run_filter_pipeline(fA, fB, target, merge_file, working_dir, output_dir, sim
 
     # load fragments and proteins
     fragmentA = get_mol(
-        target, fA, fragalysis_dir=config_filter.FRAGALYSIS_DATA_DIR
+        target, fA, fragalysis_dir=fragalysis_dir
     )
     fragmentB = get_mol(
-        target, fB, fragalysis_dir=config_filter.FRAGALYSIS_DATA_DIR
+        target, fB, fragalysis_dir=fragalysis_dir
     )
     proteinA = get_protein(
-        target, fA, fragalysis_dir=config_filter.FRAGALYSIS_DATA_DIR
+        target, fA, fragalysis_dir=fragalysis_dir
     )
     proteinB = get_protein(
-        target, fB, fragalysis_dir=config_filter.FRAGALYSIS_DATA_DIR
+        target, fB, fragalysis_dir=fragalysis_dir
     )
     filter_steps = config_filter.FILTER_PIPELINE
     score_steps = config_filter.SCORING_PIPELINE
@@ -446,67 +450,7 @@ def run_filter_pipeline(fA, fB, target, merge_file, working_dir, output_dir, sim
 def main():
     args = parse_args(sys.argv[1:])
     run_filter_pipeline(**vars(args))
-    # fA = args.fragmentA
-    # fB = args.fragmentB
-    # merge = fA + "-" + fB
-    # merge = merge.replace("_", "-")
-    # merge_dir = create_directories(args.target, merge, args.working_dir, args.output_dir)
-    #
-    # # open json file containing merges
-    # if not args.sim_search:
-    #     merges_dict = load_json(args.merge_file)
-    #     synthons, smiles = get_merges(merges_dict)
-    # else:
-    #     smiles = load_json(args.merge_file)
-    #     synthons = None
-    # print("Number of smiles: %d" % len(smiles))
-    #
-    # # load fragments and proteins
-    # fragmentA = get_mol(
-    #     args.target, fA, fragalysis_dir=config_filter.FRAGALYSIS_DATA_DIR
-    # )
-    # fragmentB = get_mol(
-    #     args.target, fB, fragalysis_dir=config_filter.FRAGALYSIS_DATA_DIR
-    # )
-    # proteinA = get_protein(
-    #     args.target, fA, fragalysis_dir=config_filter.FRAGALYSIS_DATA_DIR
-    # )
-    # proteinB = get_protein(
-    #     args.target, fB, fragalysis_dir=config_filter.FRAGALYSIS_DATA_DIR
-    # )
-    # filter_steps = config_filter.FILTER_PIPELINE
-    # score_steps = config_filter.SCORING_PIPELINE
-    #
-    # # execute the pipeline
-    # pipeline = FilterPipeline(
-    #     merge,
-    #     smiles,
-    #     synthons,  # None if sim search data
-    #     fragmentA,
-    #     fragmentB,
-    #     proteinA,
-    #     proteinB,
-    #     filter_steps,
-    #     score_steps,
-    #     args.target,
-    #     merge_dir,
-    #     args.working_dir,
-    #     args.output_dir,
-    # )
-    # pipeline.check_run()
-    # pipeline.execute_pipeline()
-    # print(f"{len(pipeline.smis)} mols after filtering.")
-    # results, _ = pipeline.return_results()
-    #
-    # # save in json files
-    # filtered_fname = merge + "_filtered.json"
-    # filtered_fpath = os.path.join(args.output_dir, args.target, merge, filtered_fname)
-    #
-    # if not os.path.exists(filtered_fpath):
-    #     with open(filtered_fpath, "w") as f:
-    #         json.dump(results, f)
-    #
-    # shutil.rmtree(merge_dir)
+
 
 
 if __name__ == "__main__":
