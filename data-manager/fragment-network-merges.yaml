@@ -15,10 +15,11 @@ test-groups:
   - NEO4J_USERNAME: neo4j
   - NEO4J_PASSWORD: test123
   - NEO4J_SERVER: bolt://graph:7687
-
+  - NUM_HOPS: '3'
+  - CLASH_DIST: '0.9'
 jobs:
 
-  fragment-network-merge:
+  fragment-network-merge-swills23:
     name: Combine pairs of fragments using Fragment network
     description: >-
       Given multiple fragment molecules generate pairs of these and for each pair generate a merged molecule
