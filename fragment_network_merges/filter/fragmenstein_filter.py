@@ -10,7 +10,6 @@ from concurrent.futures import TimeoutError
 from multiprocessing import Manager
 from typing import Tuple
 
-import pyrosetta
 from fragment_network_merges.filter.config_filter import config_filter
 from fragment_network_merges.filter.generic_filter import Filter_generic
 from pebble import ProcessPool
@@ -163,12 +162,6 @@ class FragmensteinFilter(Filter_generic):
 
         if not already_run:
             # run Fragmenstein
-            # initialise PyRosetta
-            pyrosetta.init(
-                extra_options="""-no_optH false -mute all -ex1 -ex2 -ignore_unrecognized_res false
-                                            -load_PDB_components false -ignore_waters false -constant_seed"""
-            )
-
             # get the fragments from the files
             fragments_fnames = [self.fragmentA, self.fragmentB]
             hits = [Chem.MolFromMolFile(frag) for frag in fragments_fnames]
@@ -177,6 +170,12 @@ class FragmensteinFilter(Filter_generic):
                 from fragmenstein import Wictor as Victor
                 deltaG_THR = 45
             else:
+                # initialise PyRosetta
+                import pyrosetta
+                pyrosetta.init(
+                    extra_options="""-no_optH false -mute all -ex1 -ex2 -ignore_unrecognized_res false
+                                                -load_PDB_components false -ignore_waters false -constant_seed"""
+                )
                 from fragmenstein import Victor
                 deltaG_THR = 0
 
