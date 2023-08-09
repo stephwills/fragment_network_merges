@@ -15,21 +15,21 @@ test-groups:
   - NEO4J_USERNAME: neo4j
   - NEO4J_PASSWORD: test123
   - NEO4J_SERVER: bolt://graph:7687
-  - NUM_HOPS: '3'
-  - CLASH_DIST: '0.9'
+  - NUM_HOPS: 3
+  - CLASH_DIST: 0.9
+
 jobs:
 
   fragment-network-merge-swills23:
     name: Combine pairs of fragments using Fragment network
     description: >-
-      Given multiple fragment molecules generate pairs of these and for each pair generate a merged molecule
-      that combines aspects of those fragments.
+      Generate potential fragment merges using data from the fragment network using the methodology described in
+      https://doi.org/10.1021/acs.jcim.3c00276
     version: '1.0.0'
     category: comp chem
     keywords:
     - fragment-network
     - fbdd
-    doc-url: fragment_network_merges/fragment_network_merges.md
     image:
       name: xchem/squonk2-fragment_network_merges
       tag: latest
@@ -79,7 +79,7 @@ jobs:
         - fragments
         properties:
           fragments:
-            title: Fragment molecules
+            title: Fragments and proteins
             multiple: true
             mime-types:
             - chemical/x-mdl-molfile
@@ -163,6 +163,8 @@ jobs:
         - NEO4J_USERNAME
         - NEO4J_PASSWORD
         - NEO4J_SERVER
+        - NUM_HOPS
+        - CLASH_DIST
         inputs:
           fragments:
           - data/nsp13-x0176_0B.mol,data/nsp13-x0176_0B_apo-desolv.pdb
