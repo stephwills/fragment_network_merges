@@ -63,6 +63,7 @@ jobs:
       {% if smilesFieldName %}--smilesFieldName '{{ smilesFieldName }}'{% endif %}
       {% if proteinFieldName %}--proteinFieldName '{{ proteinFieldName }}'{% endif %}
       {% if proteinFieldValue %}--proteinFieldValue '{{ proteinFieldValue }}'{% endif %}
+      --wdir {{ DM_INSTANCE_DIRECTORY }}/
     variables:
       order:
         inputs:
