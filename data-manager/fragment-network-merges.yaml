@@ -60,9 +60,9 @@ jobs:
       --outfile '{{ outfile }}'
       --fragIdFieldName ref_mols
       {% if fragIdField %}--fragIdFieldValue '{{ fragIdField }}'{% endif %}
-      {% if smilesFieldName %}--smiles_prop '{{ smilesFieldName }}'{% endif %}
-      {% if proteinFieldName %}--protein_prop_name '{{ proteinFieldName }}'{% endif %}
-      {% if proteinFieldValue %}--protein_prop_value '{{ proteinFieldValue }}'{% endif %}
+      {% if smilesFieldName %}--smilesFieldName '{{ smilesFieldName }}'{% endif %}
+      {% if proteinFieldName %}--proteinFieldName '{{ proteinFieldName }}'{% endif %}
+      {% if proteinFieldValue %}--proteinFieldValue '{{ proteinFieldValue }}'{% endif %}
     variables:
       order:
         inputs:
@@ -171,6 +171,9 @@ jobs:
           - data/nsp13-x0246_0B.mol,data/nsp13-x0246_0B_apo-desolv.pdb
         options:
           outfile: merges.sdf
+          smilesFieldName: smiles
+          proteinFieldName: pdbfile
+          proteinFieldValue: 1abc
         checks:
           exitCode: 0
           outputs:
