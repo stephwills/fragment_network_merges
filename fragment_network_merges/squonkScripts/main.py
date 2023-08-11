@@ -53,12 +53,15 @@ def main(fragments:Optional[List[str]], proteins:Optional[List[str]],
             tmpdir = wdir
         cwdir = os.getcwd()
         os.chdir(tmpdir)
-        targetName = os.path.basename(fragments[0].split("-")[0])
+        targetName = os.path.basename(fragments[0]).split("-")[0]
+        print("targetName", targetName)
         os.makedirs(os.path.join(targetName, "aligned"), exist_ok=True)
         for i, frag in enumerate(fragments):
             frag_noext = os.path.splitext(frag)[0]
             dirname = "_".join(os.path.basename(frag_noext).split("_")[:2])
-            fragmentIds.append("_".join(dirname.split("-")[1:] ))
+            fragId = "_".join(dirname.split("-")[1:] )
+            print(fragId)
+            fragmentIds.append(fragId)
             fragwdir = os.path.join(targetName, "aligned", dirname)
             os.makedirs(fragwdir, exist_ok=True)
             fragFname = os.path.join(fragwdir, dirname+".mol")
@@ -90,9 +93,12 @@ def main(fragments:Optional[List[str]], proteins:Optional[List[str]],
         config_merge.FRAGALYSIS_DATA_DIR = tmpdir
         config_filter.FRAGALYSIS_DATA_DIR = tmpdir
         config_filter.N_CPUS_FILTER_PAIR= int(os.environ.get("N_CPUS_FILTER_PAIR", 1)) #TODO: Tim, how to ask for a given number of cpus?
-        config_filter.SCORING_PIPELINE = [ "SuCOSScore"] #Not working "IfpScore"
+        config_filter.SCORING_PIPELINE = [ "SuCOSScore"] #Not working with "IfpScore"
 
         from fragment_network_merges.merge.query import run_query
+        print(targetName)
+        print(fragmentIds)
+        print(config_merge.FRAGALYSIS_DATA_DIR)
         run_query(fragmentIds, targetName, output_dir_query, remove_similar_fragments=False,  working_dir=wdir)
         # import subprocess; subprocess.call(f"cp -r ~/tmp/steph_trial/* {tmpdir}", shell=True)
         print("Queries were executed!", output_dir_query, wdir)
