@@ -55,8 +55,13 @@ jobs:
             key: server
     command: >-
       python -m fragment_network_merges.squonkScripts.main
-      --fragments {% for frag in fragments %} '{{ frag.split(",")[0] }}'{% endfor %}
-      --proteins {% for frag in fragments %} '{{ frag.split(",")[1] }}'{% endfor %}
+      {% if proteins is defined and proteins %}
+        --fragments {% for frag in fragments %} '{{ frag }}'{% endfor %}
+        --proteins {% for prot in proteins %} '{{ prot }}'{% endfor %}
+      {% else %}
+        --fragments {% for frag in fragments %} '{{ frag.split(",")[0] }}'{% endfor %}
+        --proteins {% for frag in fragments %} '{{ frag.split(",")[1] }}'{% endfor %}
+      {% endif %}
       --outfile '{{ outfile }}'
       --fragIdFieldName ref_mols
       {% if fragIdField %}--fragIdFieldValue '{{ fragIdField }}'{% endif %}
@@ -68,6 +73,7 @@ jobs:
       order:
         inputs:
         - fragments
+        - proteins
         options:
         - outfile
         - fragIdField
@@ -80,11 +86,17 @@ jobs:
         - fragments
         properties:
           fragments:
-            title: Fragments and proteins
+            title: Fragments
             multiple: true
             mime-types:
             - chemical/x-mdl-molfile
             - chemical/x-mdl-sdfile
+            type: file
+          proteins:
+            title: Proteins
+            multiple: true
+            mime-types:
+            - chemical/x-pdb
             type: file
       outputs:
         type: object
@@ -156,7 +168,7 @@ jobs:
             title: Use this value for the proteinFieldName (if not specified the file name is used)
             type: string
     tests:
-      simple-expand:
+      simple-expand-combined:
         run-groups:
         - name: fragnet-search
           ordinal: 1
@@ -182,6 +194,34 @@ jobs:
             checks:
             - exists: true
 #           - lineCount: 1180
+      simple-expand-separate:
+        run-groups:
+        - name: fragnet-search
+          ordinal: 2
+        environment:
+        - NEO4J_USERNAME
+        - NEO4J_PASSWORD
+        - NEO4J_SERVER
+        - NUM_HOPS
+        - CLASH_DIST
+        inputs:
+          fragments:
+          - data/nsp13-x0176_0B.mol
+          - data/nsp13-x0246_0B.mol
+          proteins:
+          - data/nsp13-x0176_0B_apo-desolv.pdb
+          - data/nsp13-x0246_0B_apo-desolv.pdb
+        options:
+          outfile: merges.sdf
+          smilesFieldName: smiles
+          proteinFieldName: pdbfile
+          proteinFieldValue: 1abc
+        checks:
+          exitCode: 0
+          outputs:
+          - name: merges.sdf
+            checks:
+            - exists: true
 
 
 #      simple-execution-mols:
