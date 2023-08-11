@@ -49,6 +49,7 @@ def main(fragments:Optional[List[str]], proteins:Optional[List[str]],
     #1st, recreate old fragalysis stylestructure.
     with tempfile.TemporaryDirectory() as tmpdir:
         if wdir is not None:
+            wdir = os.path.abspath(wdir)
             os.makedirs(wdir, exist_ok=True)
             tmpdir = wdir
         cwdir = os.getcwd()
@@ -59,7 +60,7 @@ def main(fragments:Optional[List[str]], proteins:Optional[List[str]],
         for i, frag in enumerate(fragments):
             frag_noext = os.path.splitext(frag)[0]
             dirname = "_".join(os.path.basename(frag_noext).split("_")[:2])
-            fragId = "_".join(dirname.split("-")[1:] )
+            fragId = "_".join(dirname.split("-")[1:])
             print(fragId)
             fragmentIds.append(fragId)
             fragwdir = os.path.join(targetName, "aligned", dirname)
