@@ -35,7 +35,8 @@ jobs:
       tag: latest
       project-directory: /data
       working-directory: /data
-      memory: 8Gi
+      memory: 1Gi
+      cores: 8
       fix-permissions: true
       environment:
       - name: NEO4J_USERNAME
@@ -53,6 +54,10 @@ jobs:
           secret:
             name: im-fragnet-graph
             key: server
+      - name: N_CPUS_FILTER_PAIR
+        value-from:
+          constant:
+            value: '8'
     command: >-
       python -m fragment_network_merges.squonkScripts.main
       {% if proteins is defined and proteins %}

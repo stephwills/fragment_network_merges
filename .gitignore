@@ -133,6 +133,8 @@ dmypy.json
 # data directory
 data/
 
+data-manager/jote
+
 # other
 .vscode
 tests/test_output/*
