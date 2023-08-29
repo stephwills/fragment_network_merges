@@ -36,7 +36,7 @@ jobs:
       project-directory: /data
       working-directory: /data
       memory: 1Gi
-      cores: 8
+      cores: '8'
       fix-permissions: true
       environment:
       - name: NEO4J_USERNAME
